@@ -8,7 +8,7 @@ FROM python:3.10-slim
 ENV PYTHONDONTWRITEBYTECODE=1
 # Prevent Python from buffering stdout and stderr
 ENV PYTHONUNBUFFERED=1
-# Set timezone to UTC (matches Binance server time)
+# Set timezone to UTC
 ENV TZ=UTC
 
 # Set work directory
@@ -19,6 +19,7 @@ WORKDIR /app
 # tzdata for timezone configuration
 RUN apt-get update && apt-get install -y \
     gcc \
+    curl \
     tzdata \
     && ln -snf /usr/share/zoneinfo/$TZ /etc/localtime \
     && echo $TZ > /etc/timezone \

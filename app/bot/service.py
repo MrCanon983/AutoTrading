@@ -53,8 +53,8 @@ class TradingService:
             raise RuntimeError("机器人已在运行")
         
         # Explicitly sync time before starting
-        logger.info("正在与币安同步时间...")
-        self.engine.data_engine.binance.synchronize_time()
+        logger.info("正在与 OKX 同步时间...")
+        self.engine.data_engine.exchange.synchronize_time()
         
         self._is_running = True
         self._thread = Thread(target=self._trading_loop, daemon=True)

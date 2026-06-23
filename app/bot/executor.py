@@ -1,7 +1,7 @@
 """
 交易执行器 - 处理交易执行逻辑。
 
-将 AI 工具调用转换为实际的币安订单，
+将 AI 工具调用转换为实际的 OKX 订单，
 包含精度处理、安全检查和错误处理。
 """
 
@@ -9,7 +9,7 @@ import logging
 from typing import Optional, Dict
 from dataclasses import dataclass
 
-from app.bot.binance_client import BinanceClient
+from app.bot.okx_client import OKXClient
 from app.bot.exceptions import (
     OrderExecutionError,
     InsufficientBalanceError,
@@ -40,7 +40,7 @@ class TradeExecutor:
     """
     交易执行处理器。
     
-    将 AI 决策转换为币安订单，包含：
+    将 AI 决策转换为 OKX 订单，包含：
     - USDT 转数量
     - 精度处理
     - 余额检查
@@ -48,16 +48,17 @@ class TradeExecutor:
     """
     
     # 安全限制
-    MIN_TRADE_USDT = 10.0  # 最小交易金额
+    MIN_TRADE_USDT = 10.0  # 最小名义交易金额
+    MAX_NOTIONAL_FREE_BALANCE_MULTIPLE = 125.0  # OKX 合约杠杆上限保护
     
-    def __init__(self, binance_client: BinanceClient):
+    def __init__(self, exchange_client: OKXClient):
         """
         初始化交易执行器。
         
         Args:
-            binance_client: 已配置的 BinanceClient 实例
+            exchange_client: 已配置的 OKXClient 实例
         """
-        self.client = binance_client
+        self.client = exchange_client
     
     def open_position(
         self,
@@ -65,7 +66,9 @@ class TradeExecutor:
         side: str,
         amount_usdt: float,
         stop_loss_price: Optional[float] = None,
-        take_profit_price: Optional[float] = None
+        take_profit_price: Optional[float] = None,
+        order_type: str = "market",
+        limit_price: Optional[float] = None
     ) -> ExecutionResult:
         """
         开仓或加仓，支持可选的止盈止损。
@@ -73,9 +76,11 @@ class TradeExecutor:
         Args:
             symbol: 交易对 (例如 'BTC/USDT')
             side: 'LONG' (做多) 或 'SHORT' (做空) - 持仓方向
-            amount_usdt: 交易金额 (USDT)
+            amount_usdt: 合约名义金额 (USDT)，不是保证金。保证金约等于名义金额 / 杠杆。
             stop_loss_price: 可选止损触发价格
             take_profit_price: 可选止盈触发价格
+            order_type: 'market' 或 'limit'
+            limit_price: 限价单价格
             
         Returns:
             ExecutionResult 包含订单详情
@@ -97,8 +102,10 @@ class TradeExecutor:
             raise ValueError(f"无效方向: {side}，应为 LONG/SHORT 或 BUY/SELL")
         
         logger.info(
-            "正在开仓: %s %s %.2f USDT (止损: %s, 止盈: %s)",
+            "正在开仓: %s %s %.2f USDT (%s, 限价: %s, 止损: %s, 止盈: %s)",
             position_side, symbol, amount_usdt, 
+            order_type,
+            limit_price or 'none',
             stop_loss_price or 'none',
             take_profit_price or 'none'
         )
@@ -115,11 +122,18 @@ class TradeExecutor:
                     f"交易金额 {amount_usdt} 低于最小限制 {self.MIN_TRADE_USDT}"
                 )
             
-            # 检查是否超过可用余额
-            # 注意: 这里检查的是名义价值，实际保证金需要除以杠杆
-            # 币安会在下单时进行最终验证，这里只是初步检查
-            if amount_usdt > free_balance:
+            if free_balance <= 0:
                 raise InsufficientBalanceError(amount_usdt, free_balance)
+
+            # count_usdt 是合约名义金额，不是保证金。
+            # 例如 50x 下 25 USDT 名义金额约占用 0.5 USDT 保证金。
+            # OKX 会基于实际杠杆、风控和手续费做最终校验；这里仅阻挡明显离谱的名义金额。
+            max_estimated_notional = free_balance * self.MAX_NOTIONAL_FREE_BALANCE_MULTIPLE
+            if amount_usdt > max_estimated_notional:
+                raise ValueError(
+                    f"名义金额 {amount_usdt:.2f} USDT 超过当前可用余额的保护上限 "
+                    f"{max_estimated_notional:.2f} USDT"
+                )
             
             # 检查调整后的最小名义价值
             min_notional = self.client.get_min_notional(symbol)
@@ -128,14 +142,27 @@ class TradeExecutor:
                     f"金额 {amount_usdt:.2f} 低于最小名义价值 {min_notional}"
                 )
             
+            order_type = (order_type or 'market').lower()
+            if order_type not in ('market', 'limit'):
+                raise ValueError(f"无效订单类型: {order_type}")
+            if order_type == 'limit' and (not limit_price or limit_price <= 0):
+                raise ValueError("限价单必须提供有效 limit_price")
+            
             # 计算数量
-            quantity = self.client.calculate_quantity(symbol, amount_usdt)
+            quantity = self.client.calculate_quantity(
+                symbol,
+                amount_usdt,
+                current_price=limit_price if order_type == 'limit' else None
+            )
             
             if quantity <= 0:
                 raise ValueError(f"{amount_usdt} USDT 计算出的数量为 0")
             
-            # 执行市价单 (双向持仓模式：使用 order_side 作为订单方向，position_side 作为持仓方向)
-            order = self.client.create_market_order(symbol, order_side, quantity, position_side)
+            # 执行开仓单
+            if order_type == 'limit':
+                order = self.client.create_limit_order(symbol, order_side, quantity, limit_price, position_side)
+            else:
+                order = self.client.create_market_order(symbol, order_side, quantity, position_side)
             
             # 获取成交价
             executed_price = float(order.get('average', 0) or order.get('price', 0))
@@ -533,4 +560,3 @@ class TradeExecutor:
                 symbol=symbol,
                 error=str(e)
             )
-

@@ -211,6 +211,21 @@ def validate_tool_call(tool_data: Dict[str, Any]) -> ToolCall:
         
         # 验证 count_usdt 是正数
         _validate_positive_number(args, 'count_usdt', name)
+
+        if 'stop_loss_price' not in args or not args.get('stop_loss_price'):
+            raise ToolValidationError(name, "stop_loss_price is required for every trade_in")
+
+        order_type = args.get('order_type', 'market').lower()
+        if order_type not in ['market', 'limit']:
+            raise ToolValidationError(
+                name,
+                f"Invalid order_type '{order_type}'. Must be market or limit"
+            )
+        args['order_type'] = order_type
+        if order_type == 'limit':
+            if 'limit_price' not in args:
+                raise ToolValidationError(name, "limit_price is required for limit orders")
+            _validate_positive_number(args, 'limit_price', name)
         
         # 验证止损止盈价格是正数
         _validate_positive_number(args, 'stop_loss_price', name)

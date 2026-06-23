@@ -44,9 +44,81 @@
     flex: 1;
     overflow-y: auto;
     display: none;
+    opacity: 0;
+    animation: tabFadeIn 180ms ease;
 }
 
 .tab-content.active {
     display: flex;
     flex-direction: column;
+    opacity: 1;
+}
+
+@keyframes tabFadeIn {
+    from {
+        opacity: 0;
+        transform: translateX(6px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* Runtime config */
+.config-container {
+    padding: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.config-section {
+    border: 1px solid var(--border-color);
+    background: var(--bg-primary);
+}
+
+.config-section-header {
+    padding: 0.5rem 0.625rem;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    font-size: 0.6875rem;
+    font-weight: 700;
+}
+
+.config-section-body {
+    display: flex;
+    flex-direction: column;
+}
+
+.config-row {
+    display: grid;
+    grid-template-columns: minmax(6rem, 38%) minmax(0, 1fr);
+    gap: 0.5rem;
+    padding: 0.5rem 0.625rem;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 0.75rem;
+}
+
+.config-row:last-child {
+    border-bottom: none;
+}
+
+.config-key {
+    color: var(--text-secondary);
+    font-weight: 700;
+}
+
+.config-value {
+    color: var(--text-primary);
+    word-break: break-word;
+    text-align: right;
+}
+
+.config-ok {
+    color: var(--green);
+}
+
+.config-missing {
+    color: var(--red);
 }

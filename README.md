@@ -2,7 +2,7 @@
 
 [EN_README](./README_en.md)
 
-一个AI驱动的，虚拟货币自动化、周期性交易系统，基于币安 USDT 永续合约。
+一个AI驱动的，虚拟货币自动化、周期性交易系统，基于 OKX USDT 永续合约。
 
 ## 功能特性
 - **AI驱动**: 使用OpenAI兼容的API（推荐Deepseek）7×24小时监控行情和账户。
@@ -26,9 +26,11 @@
 创建 `.env` 文件：
 
 ```env
-# 币安账户
-BINANCE_API_KEY=your_api_key_here
-BINANCE_API_SECRET=your_api_secret_here
+# OKX 账户
+OKX_API_KEY=your_api_key_here
+OKX_API_SECRET=your_api_secret_here
+OKX_API_PASSPHRASE=your_api_passphrase_here
+OKX_MARGIN_MODE=cross
 
 # AI 提供商 1 (必需)
 AI_1_API_KEY=your_api_key_here
@@ -52,16 +54,13 @@ CONSOLE_PASSWORD=your_secure_password_here
 > 如果有更多的提供商（例如本人使用 Deepseek Reverse + ModelScope + Siliconflow + ChatAnyWhere + Deepseek.com），推荐使用我的另一个项目 [AIAPIForwarder](https://github.com/00000O00000/AIAPIForwarder)
 >
 
-### 币安账户准备
+### OKX 账户准备
 
-本项目基于币安U本位合约交易，请按如下步骤设置账户：  
+本项目基于 OKX USDT 永续合约交易，请按如下步骤设置账户：  
 0、开始之前，请确保账户已开通合约交易  
-1、打开BTCUSDT合约的行情页  
-2、右上角设置 - 账户模式 - 经典交易  
-3、右上角设置 - 仓位模式 - 双向持仓  
-4、右上角设置 - 资产模式 - 单币保证金模式  
-5、右上角个人 - API管理 - 创建API - 编辑API权限 - 允许读取、合约   
-6、复制 ID 和 Secret 粘贴到 `.env` 文件中。  
+1、在 OKX 交易设置中使用双向持仓模式，并确认保证金模式与 `OKX_MARGIN_MODE` 一致  
+2、创建 OKX API Key，并启用读取和交易权限  
+3、复制 API Key、Secret 和 Passphrase 粘贴到 `.env` 文件中。  
 
 ### 启动
 
@@ -100,7 +99,7 @@ AutoTrading/
 │   ├── routes.py             # Flask API 路由
 │   ├── bot/                  # 交易引擎核心 (13个模块)
 │   │   ├── engine.py         # 主交易循环协调器
-│   │   ├── binance_client.py # 币安 API 封装 (CCXT)
+│   │   ├── okx_client.py     # OKX API 封装 (CCXT)
 │   │   ├── data_engine.py    # 数据聚合引擎
 │   │   ├── ai_agent.py       # AI 代理 (OpenAI SDK → DeepSeek)
 │   │   ├── executor.py       # 订单执行器
@@ -185,7 +184,7 @@ AI 可自主读写的持久化笔记，用于跨周期策略记忆。
 <summary><b>点击展开完整 System Prompt</b></summary>
 
 ```
-你是由 OpenNOF1 开发的精英量化交易 AI，在币安 USDT 永续合约市场进行 7x24 小时的操作，为客户尽可能获得更多利益，降低风险。
+你是由 OpenNOF1 开发的精英量化交易 AI，在 OKX USDT 永续合约市场进行 7x24 小时的操作，为客户尽可能获得更多利益，降低风险。
 
 ## 你的任务
 请分析给定的市场行情数据，并做出高确信度的交易决策。
@@ -239,7 +238,7 @@ Args:
 - take_profit_price: string (可选，止盈触发价)
 
 **重要**: 
-- 建议在开仓时同时设置止盈止损，这样即使系统离线，订单仍会在币安执行。
+- 建议在开仓时同时设置止盈止损，这样即使系统离线，订单仍会在 OKX 执行。
 - 如需调整杠杆，请在**开仓前**先调用 set_leverage 工具。
 
 ### close_position - 平仓或减仓

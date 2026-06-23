@@ -29,9 +29,11 @@ class Config:
     
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
-    # 币安 API
-    BINANCE_API_KEY = os.getenv('BINANCE_API_KEY', '')
-    BINANCE_API_SECRET = os.getenv('BINANCE_API_SECRET', '')
+    # OKX API
+    OKX_API_KEY = os.getenv('OKX_API_KEY', '')
+    OKX_API_SECRET = os.getenv('OKX_API_SECRET', '')
+    OKX_API_PASSPHRASE = os.getenv('OKX_API_PASSPHRASE', '')
+    OKX_MARGIN_MODE = os.getenv('OKX_MARGIN_MODE', 'cross').lower()
     
     # AI 提供商 1 (主用)
     AI_1_API_KEY = os.getenv('AI_1_API_KEY', '')

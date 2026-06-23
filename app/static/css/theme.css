@@ -1,0 +1,45 @@
+html[data-theme="light"] {
+    --bg-primary: #ffffff;
+    --bg-secondary: #f5f5f5;
+    --text-primary: #000000;
+    --text-secondary: #666666;
+    --border-color: #000000;
+    --chart-grid-color: rgba(0, 0, 0, 0.06);
+    --chart-zero-color: rgba(0, 0, 0, 0.32);
+    --scrollbar-track: #f5f5f5;
+    --scrollbar-thumb: #c7c7c7;
+    --scrollbar-thumb-hover: #8f8f8f;
+}
+
+html[data-theme="dark"] {
+    --bg-primary: #151515;
+    --bg-secondary: #090909;
+    --text-primary: #f4f4f4;
+    --text-secondary: #a8a8a8;
+    --border-color: #3a3a3a;
+    --chart-grid-color: rgba(255, 255, 255, 0.08);
+    --chart-zero-color: rgba(255, 255, 255, 0.34);
+    --scrollbar-track: #090909;
+    --scrollbar-thumb: #3a3a3a;
+    --scrollbar-thumb-hover: #5a5a5a;
+}
+
+html[data-theme="dark"] .card-header,
+html[data-theme="dark"] .settings-section-header {
+    background: #2a2a2a;
+    color: var(--text-primary);
+}
+
+html[data-theme="dark"] .table th {
+    background: #202020;
+}
+
+html[data-theme="dark"] .tool-badge,
+html[data-theme="dark"] .mcp-tool-badge {
+    background: var(--text-primary);
+    color: var(--bg-primary);
+}
+
+html[data-theme="dark"] .form-control {
+    color: var(--text-primary);
+}

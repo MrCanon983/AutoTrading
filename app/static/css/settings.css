@@ -52,6 +52,10 @@
     font-size: 0.75rem;
 }
 
+.status-row + .status-row {
+    margin-top: 0.5rem;
+}
+
 /* 设置标签内联密码验证 */
 .settings-auth-container {
     display: flex;

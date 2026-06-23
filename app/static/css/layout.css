@@ -7,10 +7,16 @@
 .dashboard-grid {
     display: grid;
     grid-template-columns: 1fr 480px;
-    grid-template-rows: 1fr auto;
+    grid-template-rows: minmax(0, 1fr);
     gap: 0;
     height: 100%;
     width: 100%;
+    min-height: 0;
+    transition: grid-template-columns 260ms ease;
+}
+
+.dashboard-grid.feed-collapsed {
+    grid-template-columns: 1fr 44px;
 }
 
 /* 左侧区域 - 图表 + 账户总览 */
@@ -18,6 +24,57 @@
     display: flex;
     flex-direction: column;
     border-right: var(--border-width) solid var(--border-color);
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+.chart-section,
+.tab-content,
+.chat-container,
+.records-container,
+.settings-panel,
+.positions-container {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+.chart-section::-webkit-scrollbar,
+.tab-content::-webkit-scrollbar,
+.chat-container::-webkit-scrollbar,
+.records-container::-webkit-scrollbar,
+.settings-panel::-webkit-scrollbar,
+.positions-container::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+.chart-section::-webkit-scrollbar-track,
+.tab-content::-webkit-scrollbar-track,
+.chat-container::-webkit-scrollbar-track,
+.records-container::-webkit-scrollbar-track,
+.settings-panel::-webkit-scrollbar-track,
+.positions-container::-webkit-scrollbar-track {
+    background: var(--scrollbar-track);
+}
+
+.chart-section::-webkit-scrollbar-thumb,
+.tab-content::-webkit-scrollbar-thumb,
+.chat-container::-webkit-scrollbar-thumb,
+.records-container::-webkit-scrollbar-thumb,
+.settings-panel::-webkit-scrollbar-thumb,
+.positions-container::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 999px;
+}
+
+.chart-section::-webkit-scrollbar-thumb:hover,
+.tab-content::-webkit-scrollbar-thumb:hover,
+.chat-container::-webkit-scrollbar-thumb:hover,
+.records-container::-webkit-scrollbar-thumb:hover,
+.settings-panel::-webkit-scrollbar-thumb:hover,
+.positions-container::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
 }
 
 /* 币种价格行 - 与底部账户总览一致的行高 */
@@ -75,11 +132,11 @@
 
 /* 主图表区域 */
 .main-chart-container {
-    flex: 1;
+    flex: 0 0 clamp(240px, 44vh, 460px);
     position: relative;
     background: var(--bg-primary);
     border-bottom: var(--border-width) solid var(--border-color);
-    min-height: 300px;
+    min-height: 240px;
     padding: 1rem;
 }
 
@@ -161,20 +218,251 @@
     color: var(--down-color);
 }
 
+/* OKX 主流合约 */
+.top-contracts-section {
+    background: var(--bg-primary);
+    border-top: var(--border-width) solid var(--border-color);
+}
+
+.top-contracts-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.5rem 0.75rem;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+    font-size: 0.6875rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+}
+
+.top-contracts-grid {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.top-contract-item {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas:
+        "rank main"
+        "rank price"
+        "rank change";
+    gap: 0.15rem 0.45rem;
+    padding: 0.55rem 0.65rem;
+    border-right: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.top-contract-item:nth-child(5n) {
+    border-right: none;
+}
+
+.top-contract-item:nth-last-child(-n+5) {
+    border-bottom: none;
+}
+
+.top-contract-rank {
+    grid-area: rank;
+    align-self: start;
+    min-width: 1.35rem;
+    height: 1.35rem;
+    border: 1px solid var(--border-color);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.625rem;
+    font-weight: 900;
+    color: var(--text-secondary);
+}
+
+.top-contract-main {
+    grid-area: main;
+    min-width: 0;
+}
+
+.top-contract-symbol {
+    font-size: 0.75rem;
+    font-weight: 900;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.top-contract-volume {
+    font-size: 0.625rem;
+    color: var(--text-secondary);
+    font-family: 'JetBrains Mono', monospace;
+}
+
+.top-contract-price {
+    grid-area: price;
+    font-size: 0.75rem;
+    font-weight: 700;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+.top-contract-change {
+    grid-area: change;
+    font-size: 0.6875rem;
+    font-weight: 700;
+}
+
+.top-contract-change.positive {
+    color: var(--up-color);
+}
+
+.top-contract-change.negative {
+    color: var(--down-color);
+}
+
 /* 右侧面板 */
 .feed-section {
     display: flex;
     flex-direction: column;
     background: var(--bg-primary);
     overflow: hidden;
-    grid-row: 1 / 3;
+    grid-row: 1;
     grid-column: 2;
+    position: relative;
+    transition: opacity 220ms ease;
+}
+
+.feed-collapse-btn {
+    position: absolute;
+    left: -1px;
+    top: 50%;
+    z-index: 20;
+    width: 28px;
+    height: 56px;
+    transform: translateY(-50%);
+    border: 1px solid var(--border-color);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    cursor: pointer;
+    font-size: 1.25rem;
+    font-weight: 900;
+    line-height: 1;
+}
+
+.feed-collapse-btn:hover {
+    background: var(--bg-secondary);
+}
+
+.dashboard-grid.feed-collapsed .feed-section {
+    border-left: var(--border-width) solid var(--border-color);
+}
+
+.dashboard-grid.feed-collapsed .tabs-header,
+.dashboard-grid.feed-collapsed .tab-content {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(12px);
+    transition: opacity 160ms ease, transform 220ms ease;
+}
+
+.dashboard-grid.feed-collapsed .feed-collapse-btn {
+    left: 7px;
 }
 
 /* 持仓表格容器 */
 .positions-container {
     padding: 0.5rem 1rem;
     overflow-y: auto;
+}
+
+.positions-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+}
+
+.position-card {
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-left: 3px solid var(--border-color);
+}
+
+.position-card.long {
+    border-left-color: var(--up-color);
+}
+
+.position-card.short {
+    border-left-color: var(--down-color);
+}
+
+.position-card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.65rem 0.75rem;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+}
+
+.position-symbol {
+    font-size: 0.95rem;
+    font-weight: 900;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+.position-sub {
+    margin-top: 0.15rem;
+    color: var(--text-secondary);
+    font-size: 0.7rem;
+    font-weight: 700;
+}
+
+.position-pnl {
+    text-align: right;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 900;
+    white-space: nowrap;
+}
+
+.position-pnl small {
+    display: block;
+    margin-top: 0.15rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+}
+
+.position-metrics {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.position-metric {
+    min-width: 0;
+    padding: 0.5rem 0.6rem;
+    border-right: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.position-metric:nth-child(3n) {
+    border-right: none;
+}
+
+.position-metric:nth-last-child(-n+3) {
+    border-bottom: none;
+}
+
+.position-metric span {
+    display: block;
+    color: var(--text-secondary);
+    font-size: 0.62rem;
+    font-weight: 700;
+    margin-bottom: 0.15rem;
+}
+
+.position-metric strong {
+    display: block;
+    color: var(--text-primary);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem;
+    overflow-wrap: anywhere;
 }
 
 /* 隐藏的 Ticker Tape (不再使用) */

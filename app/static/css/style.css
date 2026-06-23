@@ -20,5 +20,8 @@
 @import 'modal.css';
 @import 'dashboard-responsive.css';
 
-/* Mobile responsiveness - Must be last to override */
+/* Mobile responsiveness */
 @import 'mobile.css';
+
+/* Theme overrides - keep after mobile/system color rules */
+@import 'theme.css';

@@ -1,6 +1,6 @@
 # OpenNOF1
 
-An AI-driven, automated, periodic trading system for cryptocurrencies, based on Binance USDT Perpetual Contracts.
+An AI-driven, automated, periodic trading system for cryptocurrencies, based on OKX USDT perpetual contracts.
 
 ## Features
 - **AI-Driven**: Uses OpenAI-compatible APIs (Deepseek recommended) for 24/7 market and account monitoring.
@@ -24,9 +24,11 @@ An AI-driven, automated, periodic trading system for cryptocurrencies, based on 
 Create a `.env` file:
 
 ```env
-# Binance Account
-BINANCE_API_KEY=your_api_key_here
-BINANCE_API_SECRET=your_api_secret_here
+# OKX Account
+OKX_API_KEY=your_api_key_here
+OKX_API_SECRET=your_api_secret_here
+OKX_API_PASSPHRASE=your_api_passphrase_here
+OKX_MARGIN_MODE=cross
 
 # AI Provider 1 (Required)
 AI_1_API_KEY=your_api_key_here
@@ -50,16 +52,14 @@ CONSOLE_PASSWORD=your_secure_password_here
 > If you have more providers (e.g., I use Deepseek Reverse + ModelScope + Siliconflow + ChatAnyWhere + Deepseek.com), I recommend my other project [AIAPIForwarder](https://github.com/00000O00000/AIAPIForwarder).
 >
 
-### Binance Account Preparation
+### OKX Account Preparation
 
-This project is based on Binance USDT-Margined Futures. Please set up your account as follows:  
+This project is based on OKX USDT perpetual swaps. Please set up your account as follows:  
 0. Before starting, ensure your account has Futures trading enabled.  
-1. Open the price page for the BTCUSDT contract.  
-2. Top right Settings - Account Mode - Classic.  
-3. Top right Settings - Position Mode - Hedge Mode.  
-4. Top right Settings - Asset Mode - Single-Collateral Mode.  
-5. Top right Profile - API Management - Create API - Edit API permissions - Enable Read & Futures.  
-6. Copy the ID and Secret and paste them into the `.env` file.  
+1. Use hedge/long-short position mode in OKX trading settings.  
+2. Make sure the margin mode matches `OKX_MARGIN_MODE` (`cross` by default).  
+3. Create an OKX API key with read and trade permissions.  
+4. Copy the API Key, Secret, and Passphrase into the `.env` file.  
 
 ### Start
 
@@ -98,7 +98,7 @@ AutoTrading/
 │   ├── routes.py             # Flask API Routes
 │   ├── bot/                  # Trading Engine Core (13 modules)
 │   │   ├── engine.py         # Main Trading Loop Coordinator
-│   │   ├── binance_client.py # Binance API Wrapper (CCXT)
+│   │   ├── okx_client.py     # OKX API Wrapper (CCXT)
 │   │   ├── data_engine.py    # Data Aggregation Engine
 │   │   ├── ai_agent.py       # AI Agent (OpenAI SDK → DeepSeek)
 │   │   ├── executor.py       # Order Executor
@@ -182,7 +182,7 @@ A good prompt can greatly enhance the quality and outcomes of AI work. Below is 
 <summary><b>Click to expand the full System Prompt</b></summary>
 
 ```
-You are an elite quantitative trading AI developed by OpenNOF1, operating 24/7 in the Binance USDT Perpetual Futures market to maximize client profits and minimize risk.
+You are an elite quantitative trading AI developed by OpenNOF1, operating 24/7 in the OKX USDT perpetual swaps market to maximize client profits and minimize risk.
 
 ## Your Task
 Please analyze the given market data and make high-confidence trading decisions.
@@ -236,7 +236,7 @@ Args:
 - take_profit_price: string (optional, trigger price for take profit)
 
 **Important**:
-- It is recommended to set stop loss and take profit simultaneously when opening a position. This ensures orders execute on Binance even if the system goes offline.
+- It is recommended to set stop loss and take profit simultaneously when opening a position. This ensures orders execute on OKX even if the system goes offline.
 - To adjust leverage, call the set_leverage tool **before opening the position**.
 
 ### close_position - Close or reduce a position

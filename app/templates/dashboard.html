@@ -84,16 +84,29 @@
                 <div class="sub" id="stat-profit-24h-pct">0.00%</div>
             </div>
         </div>
+
+        <!-- OKX 主流 USDT 永续合约 -->
+        <div class="top-contracts-section">
+            <div class="top-contracts-header">
+                <span>OKX 主流合约 TOP 10</span>
+                <span>24h 成交额排序</span>
+            </div>
+            <div class="top-contracts-grid" id="top-contracts-list">
+                <div class="text-muted text-center">加载中...</div>
+            </div>
+        </div>
     </div>
 
-    <!-- 右侧面板: 对话/持仓/记录/设置 -->
+    <!-- 右侧面板: 对话/持仓/记录/设置/配置 -->
     <div class="feed-section">
+        <button class="feed-collapse-btn" id="feed-collapse-btn" type="button" title="收起右侧面板">‹</button>
         <!-- 标签页头部 -->
         <div class="tabs-header">
             <button class="tab-btn active" data-tab="chat">对话</button>
             <button class="tab-btn" data-tab="positions">持仓</button>
             <button class="tab-btn" data-tab="records">记录</button>
             <button class="tab-btn" data-tab="settings">设置</button>
+            <button class="tab-btn" data-tab="config">配置</button>
         </div>
 
         <!-- 对话标签 -->
@@ -106,22 +119,9 @@
         <!-- 持仓标签 -->
         <div id="tab-positions" class="tab-content">
             <div class="positions-container">
-                <table class="table">
-                    <thead>
-                        <tr>
-                            <th>币种</th>
-                            <th>方向</th>
-                            <th>杠杆</th>
-                            <th>数量</th>
-                            <th>盈亏</th>
-                        </tr>
-                    </thead>
-                    <tbody id="positions-table-body">
-                        <tr>
-                            <td colspan="5" class="text-center text-muted">当前无持仓</td>
-                        </tr>
-                    </tbody>
-                </table>
+                <div class="positions-list" id="positions-list">
+                    <div class="text-center text-muted">当前无持仓</div>
+                </div>
             </div>
         </div>
 
@@ -183,6 +183,13 @@
                     <div class="settings-section-body">
                         <div class="status-row">
                             <label class="toggle-switch">
+                                <input type="checkbox" id="theme-dark-mode">
+                                <span class="toggle-slider"></span>
+                            </label>
+                            <span>深色背景</span>
+                        </div>
+                        <div class="status-row">
+                            <label class="toggle-switch">
                                 <input type="checkbox" id="color-mode-red-up">
                                 <span class="toggle-slider"></span>
                             </label>
@@ -212,6 +219,13 @@
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <!-- 配置标签 -->
+        <div id="tab-config" class="tab-content">
+            <div class="config-container" id="config-list">
+                <div class="text-muted text-center">加载中...</div>
             </div>
         </div>
     </div>

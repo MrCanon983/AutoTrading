@@ -49,7 +49,7 @@ class AuthenticationError(OpenNOF1Error):
         self.endpoint = endpoint
         super().__init__(
             f"API credentials required for {endpoint}. "
-            f"Set BINANCE_API_KEY and BINANCE_API_SECRET in .env"
+            f"Set OKX_API_KEY, OKX_API_SECRET and OKX_API_PASSPHRASE in .env"
         )
 
 

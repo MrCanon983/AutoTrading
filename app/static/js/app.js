@@ -6,6 +6,49 @@ const API_BASE = '/api';
 const REFRESH_INTERVAL = 5000;
 const SYMBOLS = ['BTC', 'ETH', 'BNB', 'SOL', 'DOGE'];
 const COLOR_MODE_KEY = 'opennof1_color_mode';
+const THEME_MODE_KEY = 'opennof1_theme_mode';
+
+function getThemeMode() {
+    const value = localStorage.getItem(THEME_MODE_KEY);
+    if (value === 'dark' || value === 'light') return value;
+    return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+function getCSSVar(name, fallback) {
+    const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return value || fallback;
+}
+
+function getChartGridColor() {
+    return getCSSVar('--chart-grid-color', 'rgba(0,0,0,0.06)');
+}
+
+function getChartZeroColor() {
+    return getCSSVar('--chart-zero-color', 'rgba(0,0,0,0.32)');
+}
+
+function applyThemeMode(mode) {
+    const finalMode = mode === 'dark' ? 'dark' : 'light';
+    localStorage.setItem(THEME_MODE_KEY, finalMode);
+    document.documentElement.dataset.theme = finalMode;
+    updateThemeControls(finalMode);
+    updateChartTheme();
+}
+
+function updateThemeControls(mode = getThemeMode()) {
+    const themeCheckbox = document.getElementById('theme-dark-mode');
+    if (themeCheckbox) themeCheckbox.checked = mode === 'dark';
+}
+
+function updateChartTheme() {
+    if (!equityChart) return;
+    const xGrid = equityChart.options?.scales?.x?.grid;
+    const yGrid = equityChart.options?.scales?.y?.grid;
+    if (xGrid) xGrid.color = getChartGridColor();
+    if (yGrid) yGrid.color = (context) => context.tick.value === 0 ? getChartZeroColor() : getChartGridColor();
+    applyColorModeToCharts();
+    equityChart.update('none');
+}
 
 function getColorMode() {
     const value = localStorage.getItem(COLOR_MODE_KEY);
@@ -104,6 +147,7 @@ function getLocalGroupKey(isoString) {
 document.addEventListener('DOMContentLoaded', () => {
     initTabs();
 
+    applyThemeMode(getThemeMode());
     applyColorModeToCSS(getColorMode());
 
     initEquityChart();
@@ -113,11 +157,13 @@ document.addEventListener('DOMContentLoaded', () => {
     updateAccountSummary();
     updateEquityChart();
     updateTickers();
+    updateTopContracts();
     fetchDecisions();
     fetchPositions();
     fetchMemory();
     fetchRecords();
     fetchInstructions();
+    fetchConfig();
 
     setupEventListeners();
 
@@ -125,6 +171,7 @@ document.addEventListener('DOMContentLoaded', () => {
         updateStatus();
         updateAccountSummary();
         updateTickers();
+        updateTopContracts();
         fetchPositions();
     }, REFRESH_INTERVAL);
 
@@ -195,6 +242,13 @@ function initTabs() {
             if (tabId === 'records') {
                 fetchRecords();
             }
+            // 切换到持仓标签时立即拉取 OKX 最新持仓
+            if (tabId === 'positions') {
+                fetchPositions();
+            }
+            if (tabId === 'config') {
+                fetchConfig();
+            }
         });
     });
     
@@ -208,6 +262,19 @@ function initTabs() {
     
     // 初始化设置标签认证状态
     updateSettingsAuthState();
+    initFeedCollapse();
+}
+
+function initFeedCollapse() {
+    const btn = document.getElementById('feed-collapse-btn');
+    const grid = document.querySelector('.dashboard-grid');
+    if (!btn || !grid) return;
+
+    btn.addEventListener('click', () => {
+        const collapsed = grid.classList.toggle('feed-collapsed');
+        btn.textContent = collapsed ? '›' : '‹';
+        btn.title = collapsed ? '展开右侧面板' : '收起右侧面板';
+    });
 }
 
 // --- Mini Charts (币种 24h 走势) ---
@@ -294,6 +361,45 @@ async function updateTickers() {
     });
 }
 
+async function updateTopContracts() {
+    const container = document.getElementById('top-contracts-list');
+    if (!container) return;
+
+    const data = await fetchAPI('/top-contracts');
+    if (!data || !Array.isArray(data) || data.length === 0) {
+        container.innerHTML = '<div class="text-muted text-center">暂无合约数据</div>';
+        return;
+    }
+
+    let html = '';
+    data.forEach((item, index) => {
+        const price = parseFloat(item.price) || 0;
+        const change = parseFloat(item.change_24h) || 0;
+        const volume = parseFloat(item.volume_24h) || 0;
+        const priceText = price >= 1000 ? `$${price.toFixed(0)}` :
+                          price >= 1 ? `$${price.toFixed(2)}` :
+                          `$${price.toFixed(4)}`;
+        const volumeText = volume >= 1e9 ? `${(volume / 1e9).toFixed(2)}B` :
+                           volume >= 1e6 ? `${(volume / 1e6).toFixed(1)}M` :
+                           volume >= 1e3 ? `${(volume / 1e3).toFixed(1)}K` :
+                           volume.toFixed(0);
+        html += `
+            <div class="top-contract-item">
+                <div class="top-contract-rank">${index + 1}</div>
+                <div class="top-contract-main">
+                    <div class="top-contract-symbol">${escapeHtml(item.base || item.symbol)}</div>
+                    <div class="top-contract-volume">${volumeText} USDT</div>
+                </div>
+                <div class="top-contract-price">${priceText}</div>
+                <div class="top-contract-change ${change >= 0 ? 'positive' : 'negative'}">
+                    ${change >= 0 ? '+' : ''}${change.toFixed(2)}%
+                </div>
+            </div>
+        `;
+    });
+    container.innerHTML = html;
+}
+
 // --- Chart ---
 
 function initEquityChart() {
@@ -337,7 +443,7 @@ function initEquityChart() {
                 x: {
                     display: true,
                     grid: {
-                        color: 'rgba(0,0,0,0.05)',
+                        color: getChartGridColor(),
                         drawBorder: false
                     },
                     ticks: {
@@ -351,7 +457,7 @@ function initEquityChart() {
                     suggestedMin: -5,
                     suggestedMax: 5,
                     grid: {
-                        color: (context) => context.tick.value === 0 ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.05)',
+                        color: (context) => context.tick.value === 0 ? getChartZeroColor() : getChartGridColor(),
                         drawBorder: false
                     },
                     ticks: {
@@ -589,6 +695,55 @@ async function fetchDecisions() {
     }
 }
 
+const TOOL_ARG_LABELS = {
+    target: '标的',
+    side: '方向',
+    count_usdt: '名义金额',
+    order_type: '订单类型',
+    limit_price: '限价',
+    stop_loss_price: '止损价',
+    take_profit_price: '止盈价',
+    leverage: '杠杆',
+    mode: '保证金模式',
+    percentage: '平仓比例',
+    reason: '原因',
+    content: '记忆内容',
+    order_id: '订单 ID'
+};
+
+function formatToolArgValue(key, value) {
+    if (value === null || value === undefined || value === '') return '未设置';
+    const text = String(value);
+    const upper = text.toUpperCase();
+    const lower = text.toLowerCase();
+
+    const directionMap = {
+        LONG: '做多',
+        SHORT: '做空',
+        BUY: '买入',
+        SELL: '卖出'
+    };
+    const orderTypeMap = {
+        market: '市价单',
+        limit: '限价单',
+        stop_loss: '止损单',
+        take_profit: '止盈单',
+        all: '全部'
+    };
+    const marginModeMap = {
+        cross: '全仓',
+        isolated: '逐仓'
+    };
+
+    if (key === 'side') return directionMap[upper] || text;
+    if (key === 'order_type') return orderTypeMap[lower] || text;
+    if (key === 'mode') return marginModeMap[lower] || text;
+    if (key === 'leverage') return `${text}x`;
+    if (key === 'percentage') return `${text}%`;
+    if (key === 'count_usdt') return `${text} USDT 名义`;
+    return text;
+}
+
 // 渲染单个决策分组
 function renderDecisionGroup(group) {
     // 使用配置的时区格式化时间
@@ -627,9 +782,11 @@ function renderDecisionGroup(group) {
         // 格式化工具参数
         let argsHtml = '';
         if (d.args && Object.keys(d.args).length > 0) {
-            const argsLines = Object.entries(d.args).map(([k, v]) => 
-                `<div class="args-line"><span class="args-key">${escapeHtml(k)}:</span> <span class="args-value">${escapeHtml(String(v))}</span></div>`
-            ).join('');
+            const argsLines = Object.entries(d.args).map(([k, v]) => {
+                const label = TOOL_ARG_LABELS[k] || k;
+                const displayValue = formatToolArgValue(k, v);
+                return `<div class="args-line"><span class="args-key">${escapeHtml(label)}:</span> <span class="args-value">${escapeHtml(displayValue)}</span></div>`;
+            }).join('');
             argsHtml = `<div class="tool-args" id="args-${uniqueId}" style="display: none;">${argsLines}</div>`;
         }
         
@@ -705,30 +862,79 @@ function toggleMcpDetails(idx) {
 
 async function fetchPositions() {
     const data = await fetchAPI('/positions');
-    const tbody = document.getElementById('positions-table-body');
-    if (!tbody) return;
+    const container = document.getElementById('positions-list');
+    if (!container) return;
 
     if (!data || data.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">当前无持仓</td></tr>';
+        container.innerHTML = '<div class="text-center text-muted">当前无持仓</div>';
         return;
     }
 
     let html = '';
     data.forEach(pos => {
-        const pnlClass = pos.unrealized_pnl >= 0 ? 'positive' : 'negative';
+        const pnl = parseFloat(pos.unrealized_pnl) || 0;
+        const percentage = parseFloat(pos.percentage) || 0;
+        const notional = Math.abs(parseFloat(pos.notional) || 0);
+        const initialMargin = Math.abs(parseFloat(pos.initial_margin) || 0);
+        const maintenanceMargin = Math.abs(parseFloat(pos.maintenance_margin) || 0);
+        const marginRatio = parseFloat(pos.margin_ratio) || 0;
+        const pnlClass = pnl >= 0 ? 'positive' : 'negative';
         const sideLabel = pos.side === 'LONG' ? '做多' : '做空';
+        const marginMode = String(pos.margin_mode || '').toLowerCase() === 'cross' ? '全仓' :
+                           String(pos.margin_mode || '').toLowerCase() === 'isolated' ? '逐仓' :
+                           '--';
+        const updatedAt = pos.updated_at ? formatTimeWithTZ(new Date(pos.updated_at).toISOString()) : '--';
         html += `
-            <tr>
-                <td>${pos.symbol.replace('/USDT', '')}</td>
-                <td><span class="badge ${pos.side === 'LONG' ? 'badge-success' : 'badge-danger'}">${sideLabel}</span></td>
-                <td>${pos.leverage || 1}x</td>
-                <td>${parseFloat(pos.contracts).toFixed(4)}</td>
-                <td class="${pnlClass}">$${parseFloat(pos.unrealized_pnl).toFixed(2)}<br><small>${parseFloat(pos.percentage).toFixed(2)}%</small></td>
-            </tr>
+            <div class="position-card ${pos.side === 'LONG' ? 'long' : 'short'}">
+                <div class="position-card-header">
+                    <div>
+                        <div class="position-symbol">${escapeHtml(pos.symbol || '--')}</div>
+                        <div class="position-sub">${marginMode} / ${pos.leverage || 1}x / ${sideLabel}</div>
+                    </div>
+                    <div class="position-pnl ${pnlClass}">
+                        <div>${pnl >= 0 ? '+' : ''}$${formatNumber(pnl)}</div>
+                        <small>${percentage >= 0 ? '+' : ''}${percentage.toFixed(2)}%</small>
+                    </div>
+                </div>
+                <div class="position-metrics">
+                    ${renderPositionMetric('张数', formatPositionNumber(pos.contracts, 4))}
+                    ${renderPositionMetric('名义金额', `$${formatNumber(notional)}`)}
+                    ${renderPositionMetric('预估保证金', initialMargin ? `$${formatNumber(initialMargin)}` : '--')}
+                    ${renderPositionMetric('开仓价', formatPositionPrice(pos.entry_price))}
+                    ${renderPositionMetric('标记价', formatPositionPrice(pos.mark_price))}
+                    ${renderPositionMetric('强平价', formatPositionPrice(pos.liquidation_price))}
+                    ${renderPositionMetric('维持保证金', maintenanceMargin ? `$${formatNumber(maintenanceMargin)}` : '--')}
+                    ${renderPositionMetric('保证金率', marginRatio ? `${marginRatio.toFixed(2)}%` : '--')}
+                    ${renderPositionMetric('更新时间', updatedAt)}
+                </div>
+            </div>
         `;
     });
 
-    tbody.innerHTML = html;
+    container.innerHTML = html;
+}
+
+function renderPositionMetric(label, value) {
+    return `
+        <div class="position-metric">
+            <span>${escapeHtml(label)}</span>
+            <strong>${escapeHtml(value)}</strong>
+        </div>
+    `;
+}
+
+function formatPositionNumber(value, decimals = 2) {
+    const num = parseFloat(value);
+    if (!Number.isFinite(num)) return '--';
+    return num.toFixed(decimals);
+}
+
+function formatPositionPrice(value) {
+    const num = parseFloat(value);
+    if (!Number.isFinite(num) || num <= 0) return '--';
+    if (num >= 1000) return `$${num.toFixed(2)}`;
+    if (num >= 1) return `$${num.toFixed(4)}`;
+    return `$${num.toFixed(6)}`;
 }
 
 // --- Memory ---
@@ -910,6 +1116,14 @@ function setupEventListeners() {
         });
     }
 
+    const themeCheckbox = document.getElementById('theme-dark-mode');
+    if (themeCheckbox) {
+        themeCheckbox.checked = getThemeMode() === 'dark';
+        themeCheckbox.addEventListener('change', () => {
+            applyThemeMode(themeCheckbox.checked ? 'dark' : 'light');
+        });
+    }
+
     // Save instructions
     document.getElementById('btn-save-instructions')?.addEventListener('click', async () => {
         const instructions = document.getElementById('custom-instructions')?.value || '';
@@ -961,6 +1175,82 @@ function showModal(title, message, options = {}) {
 function closeModal() {
     const modal = document.getElementById('custom-modal');
     if (modal) modal.style.display = 'none';
+}
+
+// --- Runtime Config ---
+
+const CONFIG_GROUP_NAMES = {
+    exchange: '交易所',
+    ai_provider_1: 'AI 提供商 1',
+    ai_provider_2: 'AI 提供商 2',
+    trading: '交易参数',
+    app: '应用'
+};
+
+const CONFIG_FIELD_NAMES = {
+    name: '名称',
+    margin_mode: '保证金模式',
+    api_key_configured: 'API Key',
+    api_secret_configured: 'API Secret',
+    api_passphrase_configured: 'API Passphrase',
+    base_url: 'Base URL',
+    model: '模型',
+    symbols: '交易币种',
+    interval_minutes: '循环间隔（分钟）',
+    timeframes: 'K线周期',
+    candle_limit: 'K线获取数量',
+    kline_display_limit: '提示词展示K线数量',
+    timezone_offset: '时区偏移',
+    debug: '调试模式',
+    database: '数据库',
+    console_password_configured: '控制台密码',
+    flask_secret_configured: 'Flask Secret'
+};
+
+function formatConfigValue(key, value) {
+    if (Array.isArray(value)) return value.join(', ');
+    if (typeof value === 'boolean') {
+        if (key.endsWith('_configured')) return value ? '已配置' : '未配置';
+        return value ? '开启' : '关闭';
+    }
+    if (value === null || value === undefined || value === '') return '未设置';
+    return String(value);
+}
+
+async function fetchConfig() {
+    const container = document.getElementById('config-list');
+    if (!container) return;
+
+    const data = await fetchAPI('/config');
+    if (!data) {
+        container.innerHTML = '<div class="text-muted text-center">配置加载失败</div>';
+        return;
+    }
+
+    let html = '';
+    Object.entries(data).forEach(([groupKey, group]) => {
+        html += `
+            <div class="config-section">
+                <div class="config-section-header">${CONFIG_GROUP_NAMES[groupKey] || groupKey}</div>
+                <div class="config-section-body">
+        `;
+        Object.entries(group || {}).forEach(([key, value]) => {
+            const label = CONFIG_FIELD_NAMES[key] || key;
+            const displayValue = formatConfigValue(key, value);
+            const configuredClass = key.endsWith('_configured')
+                ? (value ? 'config-ok' : 'config-missing')
+                : '';
+            html += `
+                <div class="config-row">
+                    <div class="config-key">${escapeHtml(label)}</div>
+                    <div class="config-value ${configuredClass}">${escapeHtml(displayValue)}</div>
+                </div>
+            `;
+        });
+        html += '</div></div>';
+    });
+
+    container.innerHTML = html;
 }
 
 // --- Records Timeline ---

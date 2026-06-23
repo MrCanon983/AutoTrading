@@ -1,7 +1,7 @@
 """
 数据引擎 - 数据聚合的主协调器。
 
-从币安收集数据并构建供 AI 决策的上下文。
+从 OKX 收集数据并构建供 AI 决策的上下文。
 """
 
 import logging
@@ -12,8 +12,8 @@ from datetime import datetime
 
 from config import get_config
 from app.bot.tz_utils import utc_now
-from app.bot.binance_client import (
-    BinanceClient, 
+from app.bot.okx_client import (
+    OKXClient, 
     TickerData, 
     OrderBookData, 
     FundingRateData,
@@ -75,25 +75,27 @@ class DataEngine:
     """
     主数据聚合引擎。
     
-    协调从币安收集数据，并构建结构化上下文供 AI 消费。
+    协调从 OKX 收集数据，并构建结构化上下文供 AI 消费。
     """
     
     def __init__(
         self,
-        binance_api_key: str = '',
-        binance_api_secret: str = ''
+        okx_api_key: str = '',
+        okx_api_secret: str = '',
+        okx_api_passphrase: str = ''
     ):
         """
         初始化数据引擎。
         
         Args:
-            binance_api_key: 可选的 API Key (用于私有端点)
-            binance_api_secret: 可选的 API Secret
+            okx_api_key: 可选的 API Key (用于私有端点)
+            okx_api_secret: 可选的 API Secret
+            okx_api_passphrase: 可选的 API Passphrase
         """
         self.config = get_config()
         
         # 初始化客户端
-        self.binance = BinanceClient(binance_api_key, binance_api_secret)
+        self.exchange = OKXClient(okx_api_key, okx_api_secret, okx_api_passphrase)
         self.macro = MacroDataClient()
         
         # 跟踪的交易对 (所有 5 个币种同等对待)
@@ -159,11 +161,11 @@ class DataEngine:
             AssetContext 包含所有数据 (部分字段失败时可能使用默认值)
         """
         # 获取 ticker (必需 - 如果失败则无法继续)
-        ticker = self.binance.fetch_ticker(symbol)
+        ticker = self.exchange.fetch_ticker(symbol)
         
         # 获取订单簿 (可选 - 失败时使用默认值)
         try:
-            order_book = self.binance.fetch_order_book(symbol, depth=10)
+            order_book = self.exchange.fetch_order_book(symbol, depth=10)
         except Exception as e:
             logger.debug("无法获取 %s 订单簿: %s", symbol, e)
             order_book = OrderBookData(
@@ -175,7 +177,7 @@ class DataEngine:
         
         # 获取资金费率 (可选 - 失败时使用默认值)
         try:
-            funding_rate = self.binance.fetch_funding_rate(symbol)
+            funding_rate = self.exchange.fetch_funding_rate(symbol)
         except Exception as e:
             logger.debug("无法获取 %s 资金费率: %s", symbol, e)
             funding_rate = FundingRateData(
@@ -187,7 +189,7 @@ class DataEngine:
         
         # 获取多空持仓比率 (可选 - 失败时使用默认值)
         try:
-            long_short_ratio = self.binance.fetch_long_short_ratio(symbol)
+            long_short_ratio = self.exchange.fetch_long_short_ratio(symbol)
         except Exception as e:
             logger.debug("无法获取 %s 多空比: %s", symbol, e)
             import time as _time
@@ -213,7 +215,7 @@ class DataEngine:
         ohlcv_data = {}
         for tf, limit in TIMEFRAMES.items():
             try:
-                ohlcv_data[tf] = self.binance.fetch_ohlcv(symbol, tf, limit=limit)
+                ohlcv_data[tf] = self.exchange.fetch_ohlcv(symbol, tf, limit=limit)
             except Exception as e:
                 logger.warning("Could not fetch %s OHLCV for %s: %s", tf, symbol, e)
                 ohlcv_data[tf] = []
@@ -249,7 +251,7 @@ class DataEngine:
         """
         # 市场宽度
         try:
-            breadth_data = self.binance.fetch_top_gainers_losers(50)
+            breadth_data = self.exchange.fetch_top_gainers_losers(50)
             advance_decline_ratio = breadth_data['advance_decline_ratio']
         except Exception as e:
             logger.warning("Could not fetch market breadth: %s", e)
@@ -265,8 +267,8 @@ class DataEngine:
             Tuple of (balance_dict, positions_list)
         """
         try:
-            balance = self.binance.fetch_balance()
-            positions = self.binance.fetch_positions()
+            balance = self.exchange.fetch_balance()
+            positions = self.exchange.fetch_positions()
             return balance, positions
         except Exception as e:
             logger.debug("Private endpoints not available: %s", e)
@@ -276,7 +278,7 @@ class DataEngine:
         """
         获取所有挂单（算法订单：止损/止盈）。
         
-        使用币安私有 API 直接获取，确保数据最新。
+        使用交易所客户端统一接口获取，确保数据最新。
         遵循透明法则：让 AI 能看到所有待执行的条件委托。
         
         Returns:
@@ -285,20 +287,23 @@ class DataEngine:
         try:
             pending = []
             for symbol in self.symbols:
-                binance_symbol = symbol.replace('/', '')
-                # 获取算法订单 (止损/止盈)
-                algo_orders = self.binance.exchange.fapiPrivateGetOpenAlgoOrders({
-                    'symbol': binance_symbol
-                })
-                for order in algo_orders:
+                for order in self.exchange.get_open_orders(symbol):
+                    info = order.get('info') or {}
+                    trigger_price = (
+                        order.get('stopPrice')
+                        or info.get('slTriggerPx')
+                        or info.get('tpTriggerPx')
+                        or info.get('triggerPx')
+                        or 0
+                    )
                     pending.append({
                         'symbol': symbol,
-                        'order_id': order.get('algoId'),
-                        'type': order.get('orderType'),  # STOP_MARKET, TAKE_PROFIT_MARKET
+                        'order_id': order.get('id'),
+                        'type': order.get('type'),
                         'side': order.get('side'),
-                        'quantity': float(order.get('quantity', 0)),
-                        'trigger_price': float(order.get('triggerPrice', 0)),
-                        'is_algo': True
+                        'quantity': float(order.get('amount', 0) or 0),
+                        'trigger_price': float(trigger_price or 0),
+                        'is_algo': bool(order.get('is_algo'))
                     })
             return pending
         except Exception as e:
@@ -322,7 +327,7 @@ class DataEngine:
         
         # 首先同步时间
         logger.debug("开始数据聚合，同步时间...")
-        self.binance.synchronize_time()
+        self.exchange.synchronize_time()
         
         # 获取宏观数据
         advance_decline_ratio = self.fetch_macro_data()
@@ -427,7 +432,7 @@ class DataEngine:
             
             # 手续费信息
             try:
-                fees = self.binance.get_fees(symbol)
+                fees = self.exchange.get_fees(symbol)
                 taker_fee = fees.get('taker', 0.0) * 100
                 maker_fee = fees.get('maker', 0.0) * 100
                 sections.append(f"  [Fees] Taker: {taker_fee:.3f}% | Maker: {maker_fee:.3f}%")

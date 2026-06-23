@@ -83,6 +83,45 @@ def api_status():
     return jsonify(status)
 
 
+@main_bp.route('/api/config')
+def api_config():
+    """获取当前运行配置（敏感凭证不返回）。"""
+    config = get_config()
+    return jsonify({
+        'exchange': {
+            'name': 'OKX',
+            'margin_mode': config.OKX_MARGIN_MODE,
+            'api_key_configured': bool(config.OKX_API_KEY),
+            'api_secret_configured': bool(config.OKX_API_SECRET),
+            'api_passphrase_configured': bool(config.OKX_API_PASSPHRASE)
+        },
+        'ai_provider_1': {
+            'base_url': config.AI_1_BASE_URL,
+            'model': config.AI_1_MODEL,
+            'api_key_configured': bool(config.AI_1_API_KEY)
+        },
+        'ai_provider_2': {
+            'base_url': config.AI_2_BASE_URL,
+            'model': config.AI_2_MODEL,
+            'api_key_configured': bool(config.AI_2_API_KEY)
+        },
+        'trading': {
+            'symbols': config.TRADING_SYMBOLS,
+            'interval_minutes': config.TRADING_INTERVAL_MINUTES,
+            'timeframes': config.TIMEFRAMES,
+            'candle_limit': config.CANDLE_LIMIT,
+            'kline_display_limit': config.KLINE_DISPLAY_LIMIT
+        },
+        'app': {
+            'timezone_offset': config.TIMEZONE_OFFSET,
+            'debug': config.DEBUG,
+            'database': 'PostgreSQL' if config.DATABASE_URL else 'SQLite',
+            'console_password_configured': bool(config.CONSOLE_PASSWORD),
+            'flask_secret_configured': bool(config.SECRET_KEY)
+        }
+    })
+
+
 @main_bp.route('/api/tickers')
 def api_tickers():
     """获取当前行情数据（含 24h 迷你走势）。"""
@@ -92,11 +131,11 @@ def api_tickers():
     try:
         tickers = []
         for symbol in _service.engine.data_engine.symbols:
-            ticker = _service.engine.data_engine.binance.fetch_ticker(symbol)
+            ticker = _service.engine.data_engine.exchange.fetch_ticker(symbol)
             
             # 获取 24h K线数据作为 sparkline (1h 间隔, 24 根)
             try:
-                ohlcv = _service.engine.data_engine.binance.fetch_ohlcv(symbol, '1h', 24)
+                ohlcv = _service.engine.data_engine.exchange.fetch_ohlcv(symbol, '1h', 24)
                 sparkline = [candle[4] for candle in ohlcv]  # 收盘价
             except Exception as e:
                 logger.debug("获取 %s sparkline 失败: %s", symbol, e)
@@ -117,6 +156,20 @@ def api_tickers():
         return jsonify({'error': str(e)}), 500
 
 
+@main_bp.route('/api/top-contracts')
+def api_top_contracts():
+    """获取 OKX USDT 永续合约按 24h 成交额排序的前十。"""
+    if not _service:
+        return jsonify({'error': 'Service not initialized'}), 503
+
+    try:
+        data = _service.engine.data_engine.exchange.fetch_top_contracts(10)
+        return jsonify(data)
+    except Exception as e:
+        logger.error("Failed to fetch top contracts: %s", e)
+        return jsonify({'error': str(e)}), 500
+
+
 @main_bp.route('/api/alpha')
 def api_alpha():
     """获取 Alpha 指标。"""
@@ -124,9 +177,9 @@ def api_alpha():
         return jsonify({'error': 'Service not initialized'}), 503
     
     try:
-        binance = _service.engine.data_engine.binance
+        exchange = _service.engine.data_engine.exchange
         
-        breadth = binance.fetch_top_gainers_losers(50)
+        breadth = exchange.fetch_top_gainers_losers(50)
         
         return jsonify({
             'advance_decline_ratio': breadth['advance_decline_ratio'],
@@ -216,7 +269,7 @@ def api_positions():
         return jsonify({'error': 'Service not initialized'}), 503
     
     try:
-        positions = _service.engine.data_engine.binance.fetch_positions()
+        positions = _service.engine.data_engine.exchange.fetch_positions()
         return jsonify(positions)
     except Exception as e:
         logger.error("Failed to fetch positions: %s", e)
@@ -349,11 +402,11 @@ def api_close_all_positions():
         return jsonify({'error': 'Service not initialized'}), 503
     
     try:
-        binance = _service.engine.data_engine.binance
+        exchange = _service.engine.data_engine.exchange
         results = {'closed': [], 'cancelled': [], 'errors': []}
         
         # 1. 获取所有持仓
-        positions = binance.fetch_positions()
+        positions = exchange.fetch_positions()
         
         # 2. 平掉每个持仓
         for pos in positions:
@@ -366,12 +419,12 @@ def api_close_all_positions():
             
             try:
                 # 先取消该交易对的所有挂单
-                binance.cancel_all_orders(symbol)
+                exchange.cancel_all_orders(symbol)
                 results['cancelled'].append(symbol)
                 
                 # 平仓（方向与持仓相反，但 positionSide 保持与持仓一致）
                 close_side = 'SELL' if side == 'LONG' else 'BUY'
-                order = binance.create_market_order(symbol, close_side, contracts, side)
+                order = exchange.create_market_order(symbol, close_side, contracts, side)
                 results['closed'].append({
                     'symbol': symbol,
                     'side': close_side,
@@ -407,8 +460,8 @@ def api_account_summary():
     
     try:
         # 获取当前账户数据
-        balance = _service.engine.data_engine.binance.fetch_balance()
-        positions = _service.engine.data_engine.binance.fetch_positions()
+        balance = _service.engine.data_engine.exchange.fetch_balance()
+        positions = _service.engine.data_engine.exchange.fetch_positions()
         
         total_equity = balance.get('total', 0)
         free_balance = balance.get('free', 0)
@@ -483,4 +536,3 @@ def api_equity_history():
     except Exception as e:
         logger.error("Failed to fetch equity history: %s", e)
         return jsonify({'error': str(e)}), 500
-

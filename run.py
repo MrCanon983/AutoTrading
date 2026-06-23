@@ -29,8 +29,9 @@ def main():
     
     # 初始化交易引擎
     engine = TradingEngine(
-        binance_api_key=config.BINANCE_API_KEY,
-        binance_api_secret=config.BINANCE_API_SECRET,
+        okx_api_key=config.OKX_API_KEY,
+        okx_api_secret=config.OKX_API_SECRET,
+        okx_api_passphrase=config.OKX_API_PASSPHRASE,
         ai_api_key=config.AI_1_API_KEY,
         live_trading=True  # 默认以实盘交易模式启动
     )

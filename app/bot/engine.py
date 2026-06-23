@@ -29,8 +29,9 @@ class TradingEngine:
     
     def __init__(
         self,
-        binance_api_key: str = '',
-        binance_api_secret: str = '',
+        okx_api_key: str = '',
+        okx_api_secret: str = '',
+        okx_api_passphrase: str = '',
         ai_api_key: str = '',
         live_trading: bool = True
     ):
@@ -38,14 +39,15 @@ class TradingEngine:
         初始化交易引擎。
         
         Args:
-            binance_api_key: 币安 API Key
-            binance_api_secret: 币安 API Secret
+            okx_api_key: OKX API Key
+            okx_api_secret: OKX API Secret
+            okx_api_passphrase: OKX API Passphrase
             ai_api_key: AI 提供商 API Key
             live_trading: 启用实盘交易 (False = 模拟交易)
         """
-        self.data_engine = DataEngine(binance_api_key, binance_api_secret)
+        self.data_engine = DataEngine(okx_api_key, okx_api_secret, okx_api_passphrase)
         self.ai_agent = AIAgent(api_key=ai_api_key)
-        self.executor = TradeExecutor(self.data_engine.binance)
+        self.executor = TradeExecutor(self.data_engine.exchange)
         
         self.live_trading = live_trading
         if not live_trading:
@@ -234,6 +236,9 @@ class TradingEngine:
                 
                 take_profit = tool_call.args.get('take_profit_price')
                 take_profit_price = float(take_profit) if take_profit else None
+                order_type = tool_call.args.get('order_type', 'market')
+                limit_price_raw = tool_call.args.get('limit_price')
+                limit_price = float(limit_price_raw) if limit_price_raw else None
                 
                 if self.live_trading:
                     result = self.executor.open_position(
@@ -241,13 +246,15 @@ class TradingEngine:
                         side=side,
                         amount_usdt=amount_usdt,
                         stop_loss_price=stop_loss_price,
-                        take_profit_price=take_profit_price
+                        take_profit_price=take_profit_price,
+                        order_type=order_type,
+                        limit_price=limit_price
                     )
                     return result.success, result
                 else:
                     logger.info(
-                        "[模拟] TRADE_IN: %s %s, 金额=%.2f USDT, 止损=%s, 止盈=%s",
-                        side, symbol, amount_usdt,
+                        "[模拟] TRADE_IN: %s %s, 金额=%.2f USDT, 类型=%s, 限价=%s, 止损=%s, 止盈=%s",
+                        side, symbol, amount_usdt, order_type, limit_price or 'none',
                         stop_loss_price or 'none',
                         take_profit_price or 'none'
                     )
