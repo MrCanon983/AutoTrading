@@ -210,6 +210,25 @@ textarea.form-control {
 }
 
 /* Status indicator */
+.next-run-countdown {
+    border: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    padding: 0.2rem 0.45rem;
+    font-size: 0.68rem;
+    font-weight: 800;
+    font-family: 'JetBrains Mono', monospace;
+    white-space: nowrap;
+}
+
+.next-run-countdown.active {
+    color: var(--text-primary);
+}
+
+.next-run-countdown.running-now {
+    color: var(--up-color);
+}
+
 .status-dot {
     display: inline-block;
     width: 10px;

@@ -95,16 +95,17 @@ def api_config():
             'api_secret_configured': bool(config.OKX_API_SECRET),
             'api_passphrase_configured': bool(config.OKX_API_PASSPHRASE)
         },
-        'ai_provider_1': {
-            'base_url': config.AI_1_BASE_URL,
-            'model': config.AI_1_MODEL,
-            'api_key_configured': bool(config.AI_1_API_KEY)
-        },
-        'ai_provider_2': {
-            'base_url': config.AI_2_BASE_URL,
-            'model': config.AI_2_MODEL,
-            'api_key_configured': bool(config.AI_2_API_KEY)
-        },
+        'ai_providers': [
+            {
+                'order': idx,
+                'role': '首选' if idx == 1 else f'备选 {idx - 1}',
+                'name': provider.get('name'),
+                'base_url': provider.get('base_url'),
+                'model': provider.get('model'),
+                'api_key_configured': bool(provider.get('api_key'))
+            }
+            for idx, provider in enumerate(config.AI_PROVIDER_CONFIGS, start=1)
+        ],
         'trading': {
             'symbols': config.TRADING_SYMBOLS,
             'interval_minutes': config.TRADING_INTERVAL_MINUTES,

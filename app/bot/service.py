@@ -36,6 +36,10 @@ class TradingService:
         self.engine = engine
         self._is_running = False
         self._thread: Optional[Thread] = None
+        self._last_cycle_started_at: Optional[float] = None
+        self._last_cycle_finished_at: Optional[float] = None
+        self._next_run_at: Optional[float] = None
+        self._cycle_in_progress = False
     
     @property
     def is_running(self) -> bool:
@@ -57,6 +61,7 @@ class TradingService:
         self.engine.data_engine.exchange.synchronize_time()
         
         self._is_running = True
+        self._next_run_at = time.time()
         self._thread = Thread(target=self._trading_loop, daemon=True)
         self._thread.start()
         logger.info("交易服务已启动")
@@ -67,12 +72,19 @@ class TradingService:
             raise RuntimeError("机器人未运行")
         
         self._is_running = False
+        self._next_run_at = None
         # 线程将在循环检查或睡眠后自然退出
         logger.info("正在停止交易服务...")
     
     def run_once(self) -> dict:
         """立即运行一个交易循环。"""
-        return self.engine.run_cycle()
+        self._cycle_in_progress = True
+        self._last_cycle_started_at = time.time()
+        try:
+            return self.engine.run_cycle()
+        finally:
+            self._last_cycle_finished_at = time.time()
+            self._cycle_in_progress = False
     
     def enable_live_trading(self, enable: bool):
         """启用或禁用实盘交易。"""
@@ -87,7 +99,12 @@ class TradingService:
         status = {
             'running': self._is_running,
             'live_trading': self.engine.live_trading,
-            'timestamp': time.time()
+            'timestamp': time.time(),
+            'cycle_in_progress': self._cycle_in_progress,
+            'last_cycle_started_at': self._last_cycle_started_at,
+            'last_cycle_finished_at': self._last_cycle_finished_at,
+            'next_run_at': self._next_run_at,
+            'interval_seconds': get_config().TRADING_INTERVAL_MINUTES * 60
         }
         status.update(self.engine.get_status())
         return status
@@ -105,15 +122,27 @@ class TradingService:
         while self._is_running:
             with app.app_context():
                 try:
+                    self._cycle_in_progress = True
+                    self._last_cycle_started_at = time.time()
+                    self._next_run_at = None
                     result = self.engine.run_cycle()
                     logger.info("循环成功: %s", result.get('success'))
                 except Exception as e:
                     logger.error("循环错误: %s", e)
+                finally:
+                    self._last_cycle_finished_at = time.time()
+                    self._cycle_in_progress = False
             
+            if self._is_running:
+                self._next_run_at = time.time() + interval
+
             # 可中断的睡眠
             for _ in range(interval):
                 if not self._is_running:
                     break
                 time.sleep(1)
+        
+        self._next_run_at = None
+        self._cycle_in_progress = False
         
         logger.info("交易循环已结束")

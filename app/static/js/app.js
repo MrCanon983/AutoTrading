@@ -97,6 +97,8 @@ function applyColorModeToCharts() {
 // State
 let equityChart = null;
 let miniCharts = {};
+let nextRunAtMs = null;
+let cycleInProgress = false;
 
 // 使用浏览器本地时区格式化时间显示
 function formatTimeWithTZ(isoString, options = {}) {
@@ -180,6 +182,8 @@ document.addEventListener('DOMContentLoaded', () => {
         updateEquityChart();
         fetchRecords();
     }, 15000);
+
+    setInterval(updateNextRunCountdown, 1000);
 });
 
 // --- Tab System ---
@@ -595,8 +599,15 @@ async function updateStatus() {
         if (textEl) textEl.textContent = '已断开';
         if (startBtn) startBtn.disabled = true;
         if (stopBtn) stopBtn.disabled = true;
+        nextRunAtMs = null;
+        cycleInProgress = false;
+        updateNextRunCountdown();
         return;
     }
+
+    nextRunAtMs = data.next_run_at ? data.next_run_at * 1000 : null;
+    cycleInProgress = Boolean(data.cycle_in_progress);
+    updateNextRunCountdown(data.running);
 
     if (data.running) {
         if (dotEl) dotEl.className = 'status-dot running';
@@ -612,6 +623,31 @@ async function updateStatus() {
 
     const liveToggle = document.getElementById('live-trading');
     if (liveToggle) liveToggle.checked = data.live_trading || false;
+}
+
+function updateNextRunCountdown(isRunning = null) {
+    const el = document.getElementById('next-run-countdown');
+    if (!el) return;
+
+    const runningKnown = isRunning !== null ? isRunning : Boolean(nextRunAtMs || cycleInProgress);
+    el.classList.toggle('active', runningKnown);
+    el.classList.toggle('running-now', cycleInProgress);
+
+    if (cycleInProgress) {
+        el.textContent = '本轮运行中';
+        return;
+    }
+
+    if (!runningKnown || !nextRunAtMs) {
+        el.textContent = '下次 --:--';
+        return;
+    }
+
+    const remainingMs = Math.max(0, nextRunAtMs - Date.now());
+    const totalSeconds = Math.ceil(remainingMs / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    el.textContent = `下次 ${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 }
 
 // --- Decisions ---
@@ -1181,13 +1217,14 @@ function closeModal() {
 
 const CONFIG_GROUP_NAMES = {
     exchange: '交易所',
-    ai_provider_1: 'AI 提供商 1',
-    ai_provider_2: 'AI 提供商 2',
+    ai_providers: 'AI 供应商列表',
     trading: '交易参数',
     app: '应用'
 };
 
 const CONFIG_FIELD_NAMES = {
+    order: '顺序',
+    role: '角色',
     name: '名称',
     margin_mode: '保证金模式',
     api_key_configured: 'API Key',
@@ -1217,6 +1254,52 @@ function formatConfigValue(key, value) {
     return String(value);
 }
 
+function renderConfigRows(groupKey, group) {
+    if (groupKey === 'ai_providers' && Array.isArray(group)) {
+        if (group.length === 0) {
+            return '<div class="config-row"><div class="config-key">供应商</div><div class="config-value config-missing">未配置</div></div>';
+        }
+        return group.map((provider, index) => {
+            const role = provider.role || (index === 0 ? '首选' : `备选 ${index}`);
+            const configuredClass = provider.api_key_configured ? 'config-ok' : 'config-missing';
+            return `
+                <div class="config-provider">
+                    <div class="config-provider-title">
+                        <span>${escapeHtml(role)}</span>
+                        <strong>${escapeHtml(provider.name || `provider${index + 1}`)}</strong>
+                    </div>
+                    <div class="config-row">
+                        <div class="config-key">Base URL</div>
+                        <div class="config-value">${escapeHtml(formatConfigValue('base_url', provider.base_url))}</div>
+                    </div>
+                    <div class="config-row">
+                        <div class="config-key">模型</div>
+                        <div class="config-value">${escapeHtml(formatConfigValue('model', provider.model))}</div>
+                    </div>
+                    <div class="config-row">
+                        <div class="config-key">API Key</div>
+                        <div class="config-value ${configuredClass}">${provider.api_key_configured ? '已配置' : '未配置'}</div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    return Object.entries(group || {}).map(([key, value]) => {
+        const label = CONFIG_FIELD_NAMES[key] || key;
+        const displayValue = formatConfigValue(key, value);
+        const configuredClass = key.endsWith('_configured')
+            ? (value ? 'config-ok' : 'config-missing')
+            : '';
+        return `
+            <div class="config-row">
+                <div class="config-key">${escapeHtml(label)}</div>
+                <div class="config-value ${configuredClass}">${escapeHtml(displayValue)}</div>
+            </div>
+        `;
+    }).join('');
+}
+
 async function fetchConfig() {
     const container = document.getElementById('config-list');
     if (!container) return;
@@ -1234,19 +1317,7 @@ async function fetchConfig() {
                 <div class="config-section-header">${CONFIG_GROUP_NAMES[groupKey] || groupKey}</div>
                 <div class="config-section-body">
         `;
-        Object.entries(group || {}).forEach(([key, value]) => {
-            const label = CONFIG_FIELD_NAMES[key] || key;
-            const displayValue = formatConfigValue(key, value);
-            const configuredClass = key.endsWith('_configured')
-                ? (value ? 'config-ok' : 'config-missing')
-                : '';
-            html += `
-                <div class="config-row">
-                    <div class="config-key">${escapeHtml(label)}</div>
-                    <div class="config-value ${configuredClass}">${escapeHtml(displayValue)}</div>
-                </div>
-            `;
-        });
+        html += renderConfigRows(groupKey, group);
         html += '</div></div>';
     });
 

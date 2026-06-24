@@ -3,6 +3,8 @@ services:
     build: .
     container_name: opennof1_bot
     restart: unless-stopped
+    env_file:
+      - .env
     ports:
       - "${APP_PORT:-6080}:5000"
     volumes:
@@ -23,14 +25,6 @@ services:
       - OKX_API_SECRET=${OKX_API_SECRET}
       - OKX_API_PASSPHRASE=${OKX_API_PASSPHRASE}
       - OKX_MARGIN_MODE=${OKX_MARGIN_MODE:-cross}
-      # AI Provider 1 (Primary)
-      - AI_1_API_KEY=${AI_1_API_KEY}
-      - AI_1_BASE_URL=${AI_1_BASE_URL:-https://api.deepseek.com/v1}
-      - AI_1_MODEL=${AI_1_MODEL:-deepseek-chat}
-      # AI Provider 2 (Fallback, optional)
-      - AI_2_API_KEY=${AI_2_API_KEY:-}
-      - AI_2_BASE_URL=${AI_2_BASE_URL:-}
-      - AI_2_MODEL=${AI_2_MODEL:-}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/api/status"]
       interval: 30s

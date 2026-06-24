@@ -32,7 +32,6 @@ class TradingEngine:
         okx_api_key: str = '',
         okx_api_secret: str = '',
         okx_api_passphrase: str = '',
-        ai_api_key: str = '',
         live_trading: bool = True
     ):
         """
@@ -42,11 +41,10 @@ class TradingEngine:
             okx_api_key: OKX API Key
             okx_api_secret: OKX API Secret
             okx_api_passphrase: OKX API Passphrase
-            ai_api_key: AI 提供商 API Key
             live_trading: 启用实盘交易 (False = 模拟交易)
         """
         self.data_engine = DataEngine(okx_api_key, okx_api_secret, okx_api_passphrase)
-        self.ai_agent = AIAgent(api_key=ai_api_key)
+        self.ai_agent = AIAgent()
         self.executor = TradeExecutor(self.data_engine.exchange)
         
         self.live_trading = live_trading
@@ -512,5 +510,5 @@ class TradingEngine:
             "memory_length": len(self._get_memory_content()),
             "live_trading": self.live_trading,
             # 只检查 API Key 是否配置，不进行实时 API 测试（避免频繁调用 DeepSeek）
-            "ai_connected": bool(self.ai_agent.api_key)
+            "ai_connected": bool(self.ai_agent.configured_providers)
         }

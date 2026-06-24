@@ -6,10 +6,61 @@ OpenNOF1 的配置管理。
 """
 
 import os
+import re
 from dotenv import load_dotenv
 
 # 加载 .env 文件 (如果存在)
 load_dotenv()
+
+
+def _normalize_ai_provider(item: dict, index: int) -> dict:
+    """规范化 AI 提供商配置，避免在业务代码里处理多种字段名。"""
+    return {
+        'name': str(item.get('name') or f'provider{index}').strip(),
+        'api_key': str(item.get('api_key') or item.get('apiKey') or '').strip(),
+        'base_url': str(item.get('base_url') or item.get('baseUrl') or item.get('url') or '').strip(),
+        'model': str(item.get('model') or '').strip()
+    }
+
+
+def _provider_env_prefix(name: str) -> str:
+    """将供应商名转换为环境变量后缀。"""
+    return re.sub(r'[^A-Z0-9]+', '_', name.upper()).strip('_')
+
+
+def _parse_ai_providers_from_named_env() -> list:
+    """
+    从命名块读取 AI 供应商配置。
+
+    示例：
+    AI_PROVIDER_ORDER=deepseek,openai
+    AI_PROVIDER_DEEPSEEK_API_KEY=...
+    AI_PROVIDER_DEEPSEEK_BASE_URL=https://api.deepseek.com/v1
+    AI_PROVIDER_DEEPSEEK_MODEL=deepseek-chat
+    """
+    order = [
+        item.strip()
+        for item in os.getenv('AI_PROVIDER_ORDER', '').split(',')
+        if item.strip()
+    ]
+    if not order:
+        return []
+
+    providers = []
+    for idx, name in enumerate(order, start=1):
+        suffix = _provider_env_prefix(name)
+        providers.append(_normalize_ai_provider({
+            'name': name,
+            'api_key': os.getenv(f'AI_PROVIDER_{suffix}_API_KEY', ''),
+            'base_url': os.getenv(f'AI_PROVIDER_{suffix}_BASE_URL', ''),
+            'model': os.getenv(f'AI_PROVIDER_{suffix}_MODEL', '')
+        }, idx))
+    return providers
+
+
+def _load_ai_provider_configs() -> list:
+    """读取 AI_PROVIDER_ORDER + AI_PROVIDER_<NAME>_*，顺序就是首选/备选顺序。"""
+    return _parse_ai_providers_from_named_env()
 
 
 class Config:
@@ -35,15 +86,8 @@ class Config:
     OKX_API_PASSPHRASE = os.getenv('OKX_API_PASSPHRASE', '')
     OKX_MARGIN_MODE = os.getenv('OKX_MARGIN_MODE', 'cross').lower()
     
-    # AI 提供商 1 (主用)
-    AI_1_API_KEY = os.getenv('AI_1_API_KEY', '')
-    AI_1_BASE_URL = os.getenv('AI_1_BASE_URL', 'https://api.deepseek.com/v1')
-    AI_1_MODEL = os.getenv('AI_1_MODEL', 'deepseek-chat')
-    
-    # AI 提供商 2 (备用, 故障转移)
-    AI_2_API_KEY = os.getenv('AI_2_API_KEY', '')
-    AI_2_BASE_URL = os.getenv('AI_2_BASE_URL', '')
-    AI_2_MODEL = os.getenv('AI_2_MODEL', '')
+    # AI 提供商列表。使用 AI_PROVIDER_ORDER + AI_PROVIDER_<NAME>_*，按顺序故障转移。
+    AI_PROVIDER_CONFIGS = _load_ai_provider_configs()
     
     # 交易配置
     TRADING_SYMBOLS = os.getenv(

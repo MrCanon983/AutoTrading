@@ -71,47 +71,40 @@ class AIAgent:
     """
     用于交易决策的 AI 代理。
     
-    支持双提供商故障转移：主提供商失败时自动切换到备用提供商。
+    支持多个提供商故障转移：按配置顺序依次尝试，前面的失败时自动切换到后面的。
     """
     
-    def __init__(self, api_key: str = None, base_url: str = None):
+    def __init__(self):
         """
         初始化 AI 代理。
-        
-        Args:
-            api_key: AI API Key (默认为配置中的主提供商)
-            base_url: API Base URL (默认为配置中的主提供商)
         """
         config = get_config()
         self.config = config
+
+        provider_configs = list(config.AI_PROVIDER_CONFIGS)
+
+        self.providers = [
+            AIProvider(
+                name=item.get('name') or f'provider{idx}',
+                api_key=item.get('api_key', ''),
+                base_url=item.get('base_url', ''),
+                model=item.get('model', '')
+            )
+            for idx, item in enumerate(provider_configs, start=1)
+        ]
+
+        self.configured_providers = [p for p in self.providers if p.is_configured]
+        if not self.configured_providers:
+            logger.warning("未配置可用 AI 提供商")
+        else:
+            logger.info("已配置 %d 个 AI 提供商，将按顺序故障转移", len(self.configured_providers))
         
-        # 初始化 AI 提供商 1 (主用)
-        self.provider1 = AIProvider(
-            name="provider1",
-            api_key=api_key or config.AI_1_API_KEY,
-            base_url=base_url or config.AI_1_BASE_URL,
-            model=config.AI_1_MODEL
-        )
-        
-        # 初始化 AI 提供商 2 (备用, 可选)
-        self.provider2 = AIProvider(
-            name="provider2",
-            api_key=config.AI_2_API_KEY,
-            base_url=config.AI_2_BASE_URL,
-            model=config.AI_2_MODEL
-        ) if config.AI_2_API_KEY else None
-        
-        if not self.provider1.is_configured:
-            logger.warning("未配置 AI 提供商 1")
-        
-        if self.provider2 and self.provider2.is_configured:
-            logger.info("已配置 AI 提供商 2 (故障转移)")
-        
-        # 向后兼容属性
-        self.api_key = self.provider1.api_key
-        self.base_url = self.provider1.base_url
-        self.client = self.provider1.client
-        self.model = self.provider1.model
+        # 兼容旧的状态读取：指向当前首选供应商。
+        primary = self.configured_providers[0] if self.configured_providers else (self.providers[0] if self.providers else None)
+        self.api_key = primary.api_key if primary else ''
+        self.base_url = primary.base_url if primary else ''
+        self.client = primary.client if primary else None
+        self.model = primary.model if primary else ''
     
     def _call_provider(
         self,
@@ -141,6 +134,33 @@ class AIAgent:
             temperature=temperature,
             max_tokens=max_tokens
         )
+
+    def _call_with_failover(
+        self,
+        messages: list,
+        temperature: float,
+        max_tokens: int
+    ):
+        """按配置顺序调用 AI 提供商，失败则尝试下一个。"""
+        if not self.configured_providers:
+            raise AIAgentError("未配置可用 AI 提供商")
+
+        errors = []
+        total = len(self.configured_providers)
+        for idx, provider in enumerate(self.configured_providers, start=1):
+            logger.info(
+                "正在向 AI 提供商 %d/%d (%s) 发送请求",
+                idx, total, provider.name
+            )
+            try:
+                response = self._call_provider(provider, messages, temperature, max_tokens)
+                logger.info("AI 提供商 %s 请求成功", provider.name)
+                return response
+            except Exception as e:
+                logger.warning("AI 提供商 %s 请求失败: %s", provider.name, e)
+                errors.append(f"{provider.name}: {e}")
+
+        raise AIAgentError("所有 AI 提供商均失败 - " + " | ".join(errors))
     
     def analyze(
         self,
@@ -152,7 +172,7 @@ class AIAgent:
         """
         分析市场上下文并生成交易决策。
         
-        支持双提供商故障转移：主提供商失败时自动切换到备用提供商。
+        支持多个提供商故障转移：主提供商失败时自动切换到后续提供商。
         
         Args:
             market_context: 来自 DataEngine 的格式化市场数据
@@ -166,8 +186,8 @@ class AIAgent:
         Raises:
             AIAgentError: 当发生 API 或解析错误时
         """
-        if not self.provider1.is_configured:
-            raise AIAgentError("未配置 AI 提供商 1")
+        if not self.configured_providers:
+            raise AIAgentError("未配置可用 AI 提供商")
         
         # 验证参数范围
         if not 0.0 <= temperature <= 2.0:
@@ -190,36 +210,8 @@ class AIAgent:
             {"role": "user", "content": user_prompt}
         ]
         
-        logger.info("正在向 AI 提供商 1 发送请求 (%d 字符)", len(user_prompt))
-        
-        response = None
-        provider1_error = None
-        
-        # 尝试提供商 1
-        try:
-            response = self._call_provider(
-                self.provider1, messages, temperature, max_tokens
-            )
-        except Exception as e:
-            provider1_error = e
-            logger.warning("AI 提供商 1 请求失败: %s", e)
-            
-            # 如果有提供商 2，尝试使用
-            if self.provider2 and self.provider2.is_configured:
-                logger.info("正在切换到 AI 提供商 2...")
-                try:
-                    response = self._call_provider(
-                        self.provider2, messages, temperature, max_tokens
-                    )
-                    logger.info("AI 提供商 2 请求成功")
-                except Exception as provider2_error:
-                    logger.error("AI 提供商 2 也失败: %s", provider2_error)
-                    raise AIAgentError(
-                        f"AI 提供商 1 和 2 均失败 - 1: {provider1_error}, 2: {provider2_error}"
-                    )
-            else:
-                # 无提供商 2，抛出原始错误
-                raise AIAgentError(f"API 请求失败: {provider1_error}")
+        logger.info("正在向 AI 提供商列表发送请求 (%d 字符)", len(user_prompt))
+        response = self._call_with_failover(messages, temperature, max_tokens)
         
         # 检查响应有效性
         if not response.choices:
@@ -280,39 +272,11 @@ class AIAgent:
         Returns:
             AIResponse 包含解析后的工具调用
         """
-        if not self.provider1.is_configured:
-            raise AIAgentError("未配置 AI 提供商 1")
+        if not self.configured_providers:
+            raise AIAgentError("未配置可用 AI 提供商")
         
-        logger.info("正在向 AI 提供商 1 发送带消息历史的请求 (%d 条消息)", len(messages))
-        
-        response = None
-        provider1_error = None
-        
-        # 尝试提供商 1
-        try:
-            response = self._call_provider(
-                self.provider1, messages, temperature, max_tokens
-            )
-        except Exception as e:
-            provider1_error = e
-            logger.warning("AI 提供商 1 请求失败: %s", e)
-            
-            # 如果有提供商 2，尝试使用
-            if self.provider2 and self.provider2.is_configured:
-                logger.info("正在切换到 AI 提供商 2...")
-                try:
-                    response = self._call_provider(
-                        self.provider2, messages, temperature, max_tokens
-                    )
-                    logger.info("AI 提供商 2 请求成功")
-                except Exception as provider2_error:
-                    logger.error("AI 提供商 2 也失败: %s", provider2_error)
-                    raise AIAgentError(
-                        f"AI 提供商 1 和 2 均失败 - 1: {provider1_error}, 2: {provider2_error}"
-                    )
-            else:
-                # 无提供商 2，抛出原始错误
-                raise AIAgentError(f"API 请求失败: {provider1_error}")
+        logger.info("正在向 AI 提供商列表发送带消息历史的请求 (%d 条消息)", len(messages))
+        response = self._call_with_failover(messages, temperature, max_tokens)
         
         if not response.choices:
             raise AIAgentError("AI 响应无效: choices 为空")

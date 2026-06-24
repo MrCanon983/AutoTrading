@@ -91,6 +91,35 @@
     flex-direction: column;
 }
 
+.config-provider {
+    border-bottom: 1px solid var(--border-color);
+}
+
+.config-provider:last-child {
+    border-bottom: none;
+}
+
+.config-provider-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.5rem 0.625rem;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+    font-size: 0.72rem;
+}
+
+.config-provider-title span {
+    color: var(--text-secondary);
+    font-weight: 700;
+}
+
+.config-provider-title strong {
+    color: var(--text-primary);
+    font-family: 'JetBrains Mono', monospace;
+}
+
 .config-row {
     display: grid;
     grid-template-columns: minmax(6rem, 38%) minmax(0, 1fr);

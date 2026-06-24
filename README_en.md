@@ -30,15 +30,16 @@ OKX_API_SECRET=your_api_secret_here
 OKX_API_PASSPHRASE=your_api_passphrase_here
 OKX_MARGIN_MODE=cross
 
-# AI Provider 1 (Required)
-AI_1_API_KEY=your_api_key_here
-AI_1_BASE_URL=https://api.deepseek.com/v1
-AI_1_MODEL=deepseek-chat
+# AI providers, ordered by preference/failover priority
+AI_PROVIDER_ORDER=deepseek,openai
 
-# AI Provider 2 (Optional, for failover)
-# AI_2_API_KEY=your_fallback_api_key
-# AI_2_BASE_URL=https://api.openai.com/v1
-# AI_2_MODEL=gpt-4o-mini
+AI_PROVIDER_DEEPSEEK_API_KEY=your_api_key_here
+AI_PROVIDER_DEEPSEEK_BASE_URL=https://api.deepseek.com/v1
+AI_PROVIDER_DEEPSEEK_MODEL=deepseek-chat
+
+AI_PROVIDER_OPENAI_API_KEY=your_fallback_api_key
+AI_PROVIDER_OPENAI_BASE_URL=https://api.openai.com/v1
+AI_PROVIDER_OPENAI_MODEL=gpt-4o-mini
 
 # Console Password (Required, used only in settings page)
 CONSOLE_PASSWORD=your_secure_password_here
