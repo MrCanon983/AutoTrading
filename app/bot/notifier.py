@@ -107,14 +107,10 @@ class BarkNotifier:
             last_round = ai_rounds[-1]
             if len(ai_rounds) > 1:
                 lines.append(f"重试: {len(ai_rounds) - 1} 次")
-            if last_round.get('model'):
-                lines.append(f"模型: {last_round['model']}")
-            if last_round.get('tokens'):
-                lines.append(f"Tokens: {last_round['tokens']}")
 
             reasoning = self._clean_reasoning(last_round.get('reasoning') or '')
             if reasoning:
-                lines.extend(["", "市场分析/决策:", reasoning])
+                lines.extend(["", "分析/决策:", reasoning])
 
         tool_results = cycle_result.get('tool_results') or []
         if tool_results:
@@ -132,7 +128,7 @@ class BarkNotifier:
         execution_result: Optional[ExecutionResult] = item.get('execution_result')
         args = tool_call.args or {}
         status = "成功" if item.get('success') else "失败"
-        prefix = f"- {self._tool_label(tool_call.name)} [{status}]"
+        prefix = f"- {self._tool_label(tool_call.name)} {status}"
         if tool_call.info:
             prefix += f" {tool_call.info}"
 
@@ -165,18 +161,17 @@ class BarkNotifier:
         elif tool_call.name in ('cancel_orders', 'cancel_order'):
             lines.append(f"  {args.get('target', '-')} {args.get('order_type') or args.get('order_id') or ''}".rstrip())
         elif tool_call.name == 'update_memory':
-            content = str(args.get('content') or '')
-            lines.append(f"  记忆更新: {self._truncate(content, 180)}")
+            lines.append("  记忆已更新")
         else:
             lines.append(f"  参数: {args}")
 
         if execution_result:
             if execution_result.order_id:
-                lines.append(f"  订单ID: {execution_result.order_id}")
+                lines.append(f"  单号: {execution_result.order_id}")
             if execution_result.executed_price:
-                lines.append(f"  成交价: {execution_result.executed_price}")
+                lines.append(f"  价: {execution_result.executed_price}")
             if execution_result.quantity:
-                lines.append(f"  数量: {execution_result.quantity}")
+                lines.append(f"  量: {execution_result.quantity}")
             if execution_result.error:
                 lines.append(f"  错误: {execution_result.error}")
 
@@ -184,13 +179,13 @@ class BarkNotifier:
 
     def _tool_label(self, name: str) -> str:
         labels = {
-            'trade_in': '开仓/加仓',
-            'close_position': '平仓/减仓',
-            'set_leverage': '设置杠杆',
-            'modify_position': '修改止盈止损',
+            'trade_in': '开仓',
+            'close_position': '平仓',
+            'set_leverage': '杠杆',
+            'modify_position': '改止盈止损',
             'cancel_orders': '取消挂单',
-            'cancel_order': '取消指定订单',
-            'update_memory': '更新记忆'
+            'cancel_order': '取消订单',
+            'update_memory': '记忆'
         }
         return labels.get(name, name)
 
