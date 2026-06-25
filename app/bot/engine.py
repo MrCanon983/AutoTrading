@@ -16,6 +16,7 @@ from app.bot.ai_agent import AIAgent, AIResponse
 from app.bot.tz_utils import utc_now, now_with_tz
 from app.bot.executor import TradeExecutor, ExecutionResult
 from app.bot.xml_parser import ToolCall
+from app.bot.notifier import BarkNotifier
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +47,7 @@ class TradingEngine:
         self.data_engine = DataEngine(okx_api_key, okx_api_secret, okx_api_passphrase)
         self.ai_agent = AIAgent()
         self.executor = TradeExecutor(self.data_engine.exchange)
+        self.notifier = BarkNotifier()
         
         self.live_trading = live_trading
         if not live_trading:
@@ -370,7 +372,9 @@ class TradingEngine:
             "memory_updated": False,
             "tokens_used": 0,
             "live_trading": self.live_trading,
-            "retry_count": 0
+            "retry_count": 0,
+            "ai_rounds": [],
+            "tool_results": []
         }
         
         # 最大重试次数
@@ -419,6 +423,14 @@ class TradingEngine:
                 result["tokens_used"] += ai_response.usage.get("total_tokens", 0)
                 logger.info("AI 分析完成 (%d tokens, 重试 #%d)", 
                            ai_response.usage.get("total_tokens", 0), retry_count)
+                result["ai_rounds"].append({
+                    "retry": retry_count,
+                    "model": ai_response.model,
+                    "tokens": ai_response.usage.get("total_tokens", 0),
+                    "reasoning": ai_response.reasoning,
+                    "raw_response": ai_response.raw_response,
+                    "tool_count": len(ai_response.tool_calls)
+                })
                 
                 # 将 AI 回复加入消息历史
                 messages.append({"role": "assistant", "content": ai_response.raw_response})
@@ -433,6 +445,12 @@ class TradingEngine:
                 
                 for tool_call in ai_response.tool_calls:
                     success, execution_result = self._execute_tool(tool_call)
+                    result["tool_results"].append({
+                        "tool_call": tool_call,
+                        "success": success,
+                        "execution_result": execution_result,
+                        "retry": retry_count
+                    })
                     
                     if tool_call.name == "update_memory" and success:
                         result["memory_updated"] = True
@@ -499,6 +517,11 @@ class TradingEngine:
         except Exception as e:
             logger.exception("循环失败: %s", e)
             result["error"] = str(e)
+        finally:
+            try:
+                self.notifier.send_cycle_summary(result)
+            except Exception as e:
+                logger.warning("循环通知发送失败: %s", e)
         
         return result
     

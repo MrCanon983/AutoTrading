@@ -45,6 +45,13 @@ AI_PROVIDER_OPENAI_MODEL=gpt-4o-mini
 
 # 控制台密码 (必需，仅在设置页使用)
 CONSOLE_PASSWORD=your_secure_password_here
+
+# Bark 通知（可选，仅推送到 Bark）
+BARK_ENABLED=false
+BARK_URL=https://api.day.app/your_device_key
+BARK_GROUP=OpenNOF1
+BARK_LEVEL=active
+BARK_MAX_BODY_CHARS=3500
 ```
 
 >
@@ -54,6 +61,26 @@ CONSOLE_PASSWORD=your_secure_password_here
 >
 > 如果有更多的提供商（例如本人使用 Deepseek Reverse + ModelScope + Siliconflow + ChatAnyWhere + Deepseek.com），推荐使用我的另一个项目 [AIAPIForwarder](https://github.com/00000O00000/AIAPIForwarder)
 >
+
+### Bark 通知（可选）
+
+如果希望每轮 AI 分析结束后同步推送到 iPhone，可使用 Bark：
+
+1. 在 iPhone 安装 Bark，并复制 App 中的推送地址。
+2. 在 `.env` 中设置：
+
+```env
+BARK_ENABLED=true
+BARK_URL=https://api.day.app/your_device_key
+```
+
+推送内容会包含本轮市场分析、AI 决策、开仓/平仓、杠杆、止损止盈、订单 ID、成交价、数量和错误信息。修改 `.env` 后需要重启容器：
+
+```bash
+docker compose up -d --build bot
+```
+
+如果手机无法打开本机 `localhost`，`BARK_OPEN_URL` 可以留空。
 
 ### OKX 账户准备
 

@@ -119,6 +119,13 @@ def api_config():
             'database': 'PostgreSQL' if config.DATABASE_URL else 'SQLite',
             'console_password_configured': bool(config.CONSOLE_PASSWORD),
             'flask_secret_configured': bool(config.SECRET_KEY)
+        },
+        'notification': {
+            'bark_enabled': bool(config.BARK_ENABLED),
+            'bark_configured': bool(config.BARK_URL or config.BARK_DEVICE_KEY),
+            'bark_group': config.BARK_GROUP,
+            'bark_level': config.BARK_LEVEL,
+            'bark_open_url_configured': bool(config.BARK_OPEN_URL)
         }
     })
 

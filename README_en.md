@@ -43,6 +43,13 @@ AI_PROVIDER_OPENAI_MODEL=gpt-4o-mini
 
 # Console Password (Required, used only in settings page)
 CONSOLE_PASSWORD=your_secure_password_here
+
+# Bark notifications (optional, Bark only)
+BARK_ENABLED=false
+BARK_URL=https://api.day.app/your_device_key
+BARK_GROUP=OpenNOF1
+BARK_LEVEL=active
+BARK_MAX_BODY_CHARS=3500
 ```
 
 >
@@ -52,6 +59,26 @@ CONSOLE_PASSWORD=your_secure_password_here
 >
 > If you have more providers (e.g., I use Deepseek Reverse + ModelScope + Siliconflow + ChatAnyWhere + Deepseek.com), I recommend my other project [AIAPIForwarder](https://github.com/00000O00000/AIAPIForwarder).
 >
+
+### Bark Notifications (Optional)
+
+To push each completed AI cycle to your iPhone, use Bark:
+
+1. Install Bark on your iPhone and copy the push URL from the app.
+2. Configure `.env`:
+
+```env
+BARK_ENABLED=true
+BARK_URL=https://api.day.app/your_device_key
+```
+
+The notification includes the market analysis, AI decision, open/close actions, leverage, stop loss/take profit, order ID, executed price, quantity, and errors. Restart the container after changing `.env`:
+
+```bash
+docker compose up -d --build bot
+```
+
+If your phone cannot open local `localhost` links, leave `BARK_OPEN_URL` empty.
 
 ### OKX Account Preparation
 

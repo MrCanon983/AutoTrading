@@ -1219,7 +1219,8 @@ const CONFIG_GROUP_NAMES = {
     exchange: '交易所',
     ai_providers: 'AI 供应商列表',
     trading: '交易参数',
-    app: '应用'
+    app: '应用',
+    notification: '通知'
 };
 
 const CONFIG_FIELD_NAMES = {
@@ -1241,7 +1242,12 @@ const CONFIG_FIELD_NAMES = {
     debug: '调试模式',
     database: '数据库',
     console_password_configured: '控制台密码',
-    flask_secret_configured: 'Flask Secret'
+    flask_secret_configured: 'Flask Secret',
+    bark_enabled: 'Bark 开关',
+    bark_configured: 'Bark 配置',
+    bark_group: 'Bark 分组',
+    bark_level: 'Bark 级别',
+    bark_open_url_configured: 'Bark 点击跳转'
 };
 
 function formatConfigValue(key, value) {

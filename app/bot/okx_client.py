@@ -473,7 +473,37 @@ class OKXClient:
     # 交易执行
     # =========================================================================
 
-    def create_market_order(self, symbol: str, side: str, quantity: float, position_side: str) -> Dict:
+    def _build_attached_tpsl_params(
+        self,
+        symbol: str,
+        stop_loss_price: Optional[float] = None,
+        take_profit_price: Optional[float] = None
+    ) -> Dict:
+        """构建 OKX 随开仓单附带的止盈止损参数。"""
+        params = {}
+        if stop_loss_price and stop_loss_price > 0:
+            params['stopLoss'] = {
+                'triggerPrice': self._price_to_precision(symbol, stop_loss_price),
+                'type': 'market',
+                'triggerPriceType': 'last'
+            }
+        if take_profit_price and take_profit_price > 0:
+            params['takeProfit'] = {
+                'triggerPrice': self._price_to_precision(symbol, take_profit_price),
+                'type': 'market',
+                'triggerPriceType': 'last'
+            }
+        return params
+
+    def create_market_order(
+        self,
+        symbol: str,
+        side: str,
+        quantity: float,
+        position_side: str,
+        stop_loss_price: Optional[float] = None,
+        take_profit_price: Optional[float] = None
+    ) -> Dict:
         self._require_auth()
         okx_symbol = self._to_okx_symbol(symbol)
         pos_side = position_side.lower()
@@ -482,8 +512,14 @@ class OKXClient:
             'tdMode': self.margin_mode,
             'positionSide': pos_side,
         }
+        params.update(self._build_attached_tpsl_params(symbol, stop_loss_price, take_profit_price))
 
-        logger.info("正在创建 OKX 市价单: %s %s %.8f (posSide=%s)", side.upper(), symbol, quantity, pos_side)
+        logger.info(
+            "正在创建 OKX 市价单: %s %s %.8f (posSide=%s, attached SL=%s, TP=%s)",
+            side.upper(), symbol, quantity, pos_side,
+            stop_loss_price or 'none',
+            take_profit_price or 'none'
+        )
         order = self.exchange.create_order(
             symbol=okx_symbol,
             type='market',
@@ -500,7 +536,9 @@ class OKXClient:
         side: str,
         quantity: float,
         price: float,
-        position_side: str
+        position_side: str,
+        stop_loss_price: Optional[float] = None,
+        take_profit_price: Optional[float] = None
     ) -> Dict:
         self._require_auth()
         okx_symbol = self._to_okx_symbol(symbol)
@@ -511,10 +549,13 @@ class OKXClient:
             'tdMode': self.margin_mode,
             'positionSide': pos_side,
         }
+        params.update(self._build_attached_tpsl_params(symbol, stop_loss_price, take_profit_price))
 
         logger.info(
-            "正在创建 OKX 限价单: %s %s %.8f @ %.8f (posSide=%s)",
-            side.upper(), symbol, quantity, price, pos_side
+            "正在创建 OKX 限价单: %s %s %.8f @ %.8f (posSide=%s, attached SL=%s, TP=%s)",
+            side.upper(), symbol, quantity, price, pos_side,
+            stop_loss_price or 'none',
+            take_profit_price or 'none'
         )
         order = self.exchange.create_order(
             symbol=okx_symbol,

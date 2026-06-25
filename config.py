@@ -13,6 +13,20 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+def _env_bool(key: str, default: bool = False) -> bool:
+    value = os.getenv(key)
+    if value is None:
+        return default
+    return value.strip().lower() in ('1', 'true', 'yes', 'on')
+
+
+def _env_int(key: str, default: int) -> int:
+    try:
+        return int(os.getenv(key, str(default)))
+    except (TypeError, ValueError):
+        return default
+
+
 def _normalize_ai_provider(item: dict, index: int) -> dict:
     """规范化 AI 提供商配置，避免在业务代码里处理多种字段名。"""
     return {
@@ -88,6 +102,20 @@ class Config:
     
     # AI 提供商列表。使用 AI_PROVIDER_ORDER + AI_PROVIDER_<NAME>_*，按顺序故障转移。
     AI_PROVIDER_CONFIGS = _load_ai_provider_configs()
+
+    # Bark 通知配置。BARK_URL 可直接填 https://api.day.app/<device_key>；
+    # 也可使用 BARK_SERVER_URL + BARK_DEVICE_KEY 组合。
+    BARK_ENABLED = _env_bool('BARK_ENABLED', False)
+    BARK_URL = os.getenv('BARK_URL', '').strip()
+    BARK_SERVER_URL = os.getenv('BARK_SERVER_URL', 'https://api.day.app').strip()
+    BARK_DEVICE_KEY = os.getenv('BARK_DEVICE_KEY', '').strip()
+    BARK_GROUP = os.getenv('BARK_GROUP', 'OpenNOF1').strip()
+    BARK_LEVEL = os.getenv('BARK_LEVEL', 'active').strip()
+    BARK_SOUND = os.getenv('BARK_SOUND', '').strip()
+    BARK_ICON = os.getenv('BARK_ICON', '').strip()
+    BARK_OPEN_URL = os.getenv('BARK_OPEN_URL', '').strip()
+    BARK_TIMEOUT_SECONDS = _env_int('BARK_TIMEOUT_SECONDS', 8)
+    BARK_MAX_BODY_CHARS = _env_int('BARK_MAX_BODY_CHARS', 3500)
     
     # 交易配置
     TRADING_SYMBOLS = os.getenv(
